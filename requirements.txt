@@ -1,0 +1,5 @@
+cellfinder==0.4.19
+opencv-python==4.5.4.58
+imaris_ims_file_reader==0.1.4
+brainrender
+dask==2022.5.0
