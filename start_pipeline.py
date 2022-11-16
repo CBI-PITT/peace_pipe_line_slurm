@@ -47,11 +47,15 @@ def start_pipeline(settings_file_path):
 
 
 while True:
+    print("Looking for tasks...")
     json_files = sorted(glob(os.path.join(settings.JSON_FOLDER, f'{NODE_NAME}_settings*.json')))
+    print(len(json_files), "JSON files found")
     if len(json_files):
+        print("Starting processing")
         settings_file_path = json_files[0]
         setattr(settings, "SETTINGS_FILE_PATH", settings_file_path)
         start_pipeline(settings_file_path)
         os.remove(settings_file_path)
     else:
+        print("Waining 30 seconds...")
         time.sleep(30)
