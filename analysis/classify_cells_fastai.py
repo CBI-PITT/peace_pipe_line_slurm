@@ -34,6 +34,14 @@ def classify_cells_fastai(options):
     """
     # path = Path(options["out_name"])
     # analysis_folder = path.parent.absolute()
+    settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
+    local_settings = {}
+    with open(settings_file, "r") as f:
+        local_settings_str = f.read()
+        local_settings = json.loads(local_settings_str)
+    for k, v in local_settings.items():
+        setattr(settings, k, v)
+
     model_path = settings.PYTORCH_MODEL_PATH
     model_version = settings.PYTORCH_MODEL_VERSION
     model_name = os.path.basename(model_path)

@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 from imaris_ims_file_reader import ims
 
@@ -57,7 +58,15 @@ def do_analysis(ims_file_path, analysis_dir_this_brain, operations_to_perform):
             update_info_file(analysis_dir_this_brain, options)
         # TODO: check and update processed json file
 
+    settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
+    local_settings = {}
+    with open(settings_file, "r") as f:
+        local_settings_str = f.read()
+        local_settings = json.loads(local_settings_str)
+
     for operation in operations_to_perform:
+        if operation in local_settings:
+            operation = local_settings[operation]
         log.info(f"Performing operation: {operation}")
         update_in_progress_files_json(host, ims_file_path, operation)  # Add operation in progress
         operation_func = getattr(sys.modules[__name__], operation)
