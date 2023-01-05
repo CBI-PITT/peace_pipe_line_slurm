@@ -15,7 +15,9 @@ from imaris_ims_file_reader import ims
 from analysis import settings
 from analysis.analyze_cells import analyze_cells_cellfinder, analyze_cells_imaris
 from analysis.classify_cells import classify_cells, save_cells_imaris
+from analysis.classify_cells_fastai import classify_cells_fastai
 from analysis.extract_tiff import extract_tiff_series
+from analysis.fft_dask_cluster import fft_cluster
 from analysis.find_cells import detect_cells
 from analysis.find_cells_nn import detect_cells_nn
 from analysis.guess_background_channel import guess_background
