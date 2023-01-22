@@ -64,9 +64,17 @@ def do_analysis(ims_file_path, analysis_dir_this_brain, operations_to_perform):
         local_settings_str = f.read()
         local_settings = json.loads(local_settings_str)
 
+    operations_to_perform_adjusted = []
     for operation in operations_to_perform:
         if operation in local_settings:
-            operation = local_settings[operation]
+            operations_list = local_settings[operation]
+            operations_to_perform_adjusted.extend(operations_list)
+        else:
+            operations_to_perform_adjusted.append(operation)
+
+    print("Actions:", operations_to_perform_adjusted)
+
+    for operation in operations_to_perform_adjusted:
         log.info(f"Performing operation: {operation}")
         update_in_progress_files_json(host, ims_file_path, operation)  # Add operation in progress
         operation_func = getattr(sys.modules[__name__], operation)
