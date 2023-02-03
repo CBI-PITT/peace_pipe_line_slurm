@@ -183,7 +183,7 @@ def analyze_cells_cellfinder(options):
     return True
 
 
-def analyze_cells(options, cells_npy_file_path, transformed_npy_filename):
+def analyze_cells(options):
     """
     Create csv (DataFrame) with all cells' info.
 
@@ -214,6 +214,8 @@ def analyze_cells(options, cells_npy_file_path, transformed_npy_filename):
         settings.CELLFINDER_OUT_FOLDER_NAME
     )
     info_file_path = os.path.join(options['out_name'], settings.INFO_FILE_NAME)
+    ims_file_path = options['ims_file_path']
+    path_to_classification_df = os.path.join(cellfinder_output_folder, 'points', f'predictions_{settings.PYTORCH_MODEL_NAME}_{settings.PYTORCH_MODEL_VERSION}.csv')
 
     # transform points to atlas space
     log.info('Creating DataFrame for detected cells...')
@@ -249,7 +251,9 @@ def analyze_cells(options, cells_npy_file_path, transformed_npy_filename):
         os.path.join(registration_folder, 'boundaries.tiff')
     )
 
-    all_detected_spots = np.load(cells_npy_file_path)
+    classification_df = pd.read_csv(path_to_classification_df)
+    classification_df_coords = classification_df.drop(classification_df.columns[[0, 1, 5, 6, 7, 8]], axis=1)
+    all_detected_spots = classification_df_coords.to_numpy()
     all_detected_spots_downsampled = transform_points_to_downsampled_space(
         all_detected_spots, downsampled_space, source_space
     )
@@ -257,16 +261,25 @@ def analyze_cells(options, cells_npy_file_path, transformed_npy_filename):
         all_detected_spots_downsampled, atlas, deformation_field_paths
     )
     np.save(
-        os.path.join(cellfinder_output_folder, transformed_npy_filename),
+        os.path.join(cellfinder_output_folder, "all_detected_spots_transformed.npy"),
         all_detected_spots_transformed
     )
-
+    all_detected_spots_downsampled = np.round(all_detected_spots_downsampled).astype(int)
     # For each point, get atlas label
     label_ids = []
     empty_points = []
     error_points = []
     good_points = []
     df_data = []
+
+    con = sqlite3.connect(settings.DB_LOCATION)
+    cur = con.cursor()
+    metadata_record_id = cur.execute(f'SELECT id FROM metadata WHERE file_path="{ims_file_path}"').fetchone()  # TODO: use LIKE
+    con.close()
+    if len(metadata_record_id):
+        metadata_record_id = metadata_record_id[0]
+    signal_channels = get_signal_channels(options["channels"], options["background_channel"])
+    signal_channel = signal_channels[0]  # TODO handle multiple signal channels
 
     for ind in range(all_detected_spots_transformed.shape[0]):
         label_id = 0
@@ -320,18 +333,34 @@ def analyze_cells(options, cells_npy_file_path, transformed_npy_filename):
 
             label_ids.append(label_id)
             data_entry = [
-                ind,
-                *list(all_detected_spots[ind, :] * options["resolution"]),
-                options["resolution_level"],
-                *list(options["resolution"]),
-                *list(all_detected_spots[ind, :]),
-                atlas.atlas_name,
-                *list(all_detected_spots_downsampled[ind, :]),
-                *list(all_detected_spots_transformed[ind, :]),
-                label_id,
-                structure_code,
-                structure_name,
-                options["ims_file_path"]
+                ulid.new(),  # uuid  # TODO: create when saving imaris points?
+                0,  # time_point
+                signal_channel,  # channel
+                all_detected_spots[ind, 0] * options['resolution'][0],  # 'z_raw'  # TODO take from original imaris points?
+                all_detected_spots[ind, 1] * options['resolution'][1],  # 'y_raw',
+                all_detected_spots[ind, 2] * options['resolution'][2],  # 'x_raw',
+                'um',  # 'raw_coord_units'
+                int(round(all_detected_spots[ind, 0] * options['resolution'][0] / options['full_resolution'][0])),  # 'z_raw_px'  # TODO take from original imaris points?
+                int(round(all_detected_spots[ind, 1] * options['resolution'][1] / options['full_resolution'][1])),  # 'y_raw_px'
+                int(round(all_detected_spots[ind, 2] * options['resolution'][2] / options['full_resolution'][2])),  # 'x_raw_px'
+                int(classification_df.loc[ind, "nn_decoded"] == 'cell') if classification_df is not None else 0, # 'is_cell',
+                '',  # 'type',
+                atlas.atlas_name,  # 'atlas_name',
+                options["allen_resolution"],  # 'atlas_resolution',
+                all_detected_spots_downsampled[ind, 0],  # 'z_downsampled',
+                all_detected_spots_downsampled[ind, 1],  # 'y_downsampled',
+                all_detected_spots_downsampled[ind, 2],  # 'x_downsampled',
+                all_detected_spots_transformed[ind, 0] * atlas.resolution[0],  # 'z_transformed',
+                all_detected_spots_transformed[ind, 1] * atlas.resolution[1],  # 'y_transformed',
+                all_detected_spots_transformed[ind, 2] * atlas.resolution[2],  # 'x_transformed',
+                'um',  # transformed_coord_units
+                int(round(all_detected_spots_transformed[ind, 0])),  # 'z_transformed_px',
+                int(round(all_detected_spots_transformed[ind, 1])),  # 'y_transformed_px',
+                int(round(all_detected_spots_transformed[ind, 2])),  # 'x_transformed_px',
+                structure_name,  # 'atlas_structure_name',
+                structure_code,  # 'atlas_structure_acronym',
+                label_id,  # 'atlas_structure_number',
+                metadata_record_id,  # 'metadata'
             ]
             df_data.append(data_entry)
 
@@ -342,31 +371,67 @@ def analyze_cells(options, cells_npy_file_path, transformed_npy_filename):
         Total points without a label: {(len(empty_points) + len(error_points)) / len(label_ids) * 100}
         '''
     )
-    np.save(os.path.join(cellfinder_output_folder, f'{transformed_npy_filename}_empty.npy'), empty_points)
-    np.save(os.path.join(cellfinder_output_folder, f'{transformed_npy_filename}_error.npy'), error_points)
-    np.save(os.path.join(cellfinder_output_folder, f'{transformed_npy_filename}_good.npy'), good_points)
+    np.save(os.path.join(cellfinder_output_folder, f'all_detected_spots_transformed_empty.npy'), empty_points)
+    np.save(os.path.join(cellfinder_output_folder, f'all_detected_spots_transformed_error.npy'), error_points)
+    np.save(os.path.join(cellfinder_output_folder, f'all_detected_spots_transformed_good.npy'), good_points)
 
     # create a DataFrame
     df_column_names = [
-        'ind',
-        'z_raw_um', 'y_raw_um', 'x_raw_um',
-        'resolution_level_used',
-        'resolution_used_z', 'resolution_used_y', 'resolution_used_x',
-        'z_raw_px', 'y_raw_px', 'x_raw_px',
-        'atlas',
-        'z_downsampled_px', 'y_downsampled_px', 'x_downsampled_px',
-        'z_atlas_px', 'y_atlas_px', 'x_atlas_px',
-        'atlas_label_id',
-        'structure_acronym',
-        'structure_name',
-        'path_to_file'
+        'uuid',
+        'time_point',
+        'channel',
+        'z_raw',
+        'y_raw',
+        'x_raw',
+        'raw_coord_units',
+        'z_raw_px',
+        'y_raw_px',
+        'x_raw_px',
+        'is_cell',
+        'type',
+        'atlas_name',
+        'atlas_resolution',
+        'z_downsampled',
+        'y_downsampled',
+        'x_downsampled',
+        'z_transformed',
+        'y_transformed',
+        'x_transformed',
+        'transformed_coord_units',
+        'z_transformed_px',
+        'y_transformed_px',
+        'x_transformed_px',
+        'atlas_structure_name',
+        'atlas_structure_acronym',
+        'atlas_structure_number',
+        'metadata'
     ]
 
     df = pd.DataFrame(df_data, columns=df_column_names)
     timestamp = datetime.now().strftime(settings.TIMESTAMP_FORAMT)
     output_csv_file_path = os.path.join(options['out_name'], settings.CELLS_DATAFRAME_NAME_PATTERN.format(timestamp))
+    print('output_csv_file_path', output_csv_file_path)
     df.to_csv(output_csv_file_path)
     log.info('Created DataFrame for detected cells')
+
+    df = df.astype(
+        {"uuid": str, "z_raw": float, "y_raw": float, "x_raw": float, "raw_coord_units": str, "z_raw_px": int,
+         "y_raw_px": int, "x_raw_px": int, "is_cell": int, "type": str, "atlas_name": str, "atlas_resolution": str,
+         "z_downsampled": int, "y_downsampled": int, "x_downsampled": int, "z_transformed": float,
+         "y_transformed": float, "x_transformed": float, "transformed_coord_units": str, "z_transformed_px": int,
+         "y_transformed_px": int, "x_transformed_px": int, "atlas_structure_name": str, "atlas_structure_acronym": str,
+         "atlas_structure_number": int, "metadata": int}
+    )
+    return df
+
+
+def save_to_db(options):
+    df = analyze_cells(options)
+    con = sqlite3.connect(settings.DB_LOCATION)
+    df.to_sql('cell', con, if_exists='append', index=False)
+    con.commit()
+    con.close()
+    log.info('Created database records for detected cells')
 
 
 if __name__ == "__main__":
