@@ -13,7 +13,7 @@ from pathlib import Path
 
 from imaris_ims_file_reader import ims
 
-from analysis import settings
+from analysis import settings, local_settings
 from analysis.analyze_cells import analyze_cells_cellfinder, analyze_cells_imaris, save_to_db
 from analysis.classify_cells import classify_cells, save_cells_imaris
 from analysis.classify_cells_fastai import classify_cells_fastai
@@ -59,15 +59,16 @@ def do_analysis(ims_file_path, analysis_dir_this_brain, operations_to_perform):
         # TODO: check and update processed json file
 
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
-    local_settings = {}
+    local_settings.update_settings(settings, settings_file)
+
+    local_settings_dict = {}
     with open(settings_file, "r") as f:
         local_settings_str = f.read()
-        local_settings = json.loads(local_settings_str)
-
+        local_settings_dict = json.loads(local_settings_str)
     operations_to_perform_adjusted = []
     for operation in operations_to_perform:
-        if operation in local_settings:
-            operations_list = local_settings[operation]
+        if operation in local_settings_dict:
+            operations_list = local_settings_dict[operation]
             operations_to_perform_adjusted.extend(operations_list)
         else:
             operations_to_perform_adjusted.append(operation)

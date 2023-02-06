@@ -5,10 +5,13 @@ import logging
 import os
 import re
 import subprocess
+import sqlite3
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import tifffile
+import ulid
 
 import bg_space as bgs
 from bg_atlasapi.bg_atlas import BrainGlobeAtlas
@@ -18,7 +21,7 @@ from imlib.IO.cells import get_cells
 
 from imaris_ims_file_reader import ims
 
-from analysis import settings
+from analysis import settings, local_settings
 from analysis.classify_cells import save_cells_imaris
 from analysis.register_brains import register_brain, get_path_to_best_registration
 from analysis.utils import get_resolution_level_better_than_10um, get_signal_channels
@@ -121,7 +124,7 @@ def analyze_cells_imaris(options):
         transformed_filename = settings.TRANSFORMED_CELLS_FILE_NAME
     else:
         transformed_filename = settings.TRANSFORMED_SPOTS_FILE_NAME
-    analyze_cells(options, npy_file_path, transformed_filename)
+    analyze_cells(options)
     return True
 
 
@@ -179,7 +182,7 @@ def analyze_cells_cellfinder(options):
             all_detected_spots = np.asarray(all_detected_spots)
             np.save(npy_file_path, all_detected_spots)
 
-        analyze_cells(options, npy_file_path, transformed_filename)
+        analyze_cells(options)
     return True
 
 
@@ -208,6 +211,8 @@ def analyze_cells(options):
     }
     :return: csv file path
     """
+    settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
+    local_settings.update_settings(settings, settings_file)
     cellfinder_output_folder = os.path.join(
         options['out_name'],
         settings.RESOLUTION_LEVEL_FOLDER_NAME,
@@ -426,12 +431,15 @@ def analyze_cells(options):
 
 
 def save_to_db(options):
+    settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
+    local_settings.update_settings(settings, settings_file)
     df = analyze_cells(options)
     con = sqlite3.connect(settings.DB_LOCATION)
     df.to_sql('cell', con, if_exists='append', index=False)
     con.commit()
     con.close()
     log.info('Created database records for detected cells')
+    print("Done saving to db")
 
 
 if __name__ == "__main__":
