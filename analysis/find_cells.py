@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 
+import dask
 import numpy as np
 import pandas as pd
 import tifffile
@@ -193,6 +194,83 @@ def launch_cell_finder(
         log.error('Cell detection failed')
         return False
     log.debug("Cellfinder: success")
+    return True
+
+
+def run_dbscan_on_chunk(df):
+    from sklearn.cluster import DBSCAN
+    points = df[["axis-0", "axis-1", "axis-2"]].to_numpy()
+    print("Points shape", points.shape)
+
+    eps = 3
+    min_samples = 1
+
+    # create a DBSCAN object
+    dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+
+    # fit the points to the model
+    dbscan.fit(points)
+
+    # get the cluster assignments for each point
+    labels = dbscan.labels_
+
+    # get the unique cluster labels
+    cluster_labels = np.unique(labels)
+    print("Total clusters:", len(cluster_labels))
+
+    # calculate the centroid of each cluster
+    def get_cluster_centroid(label):
+        points_in_cluster = points[labels == label]
+        centroid = np.mean(points_in_cluster, axis=0)
+        return centroid
+
+    centroids = [dask.delayed(get_cluster_centroid)(x) for x in cluster_labels]
+    cluster_centroids = dask.compute(centroids)[0]
+    print(type(cluster_centroids))
+    print(len(cluster_centroids))
+
+    cluster_centroids = np.array(cluster_centroids)
+    print(cluster_centroids.shape)
+    print(cluster_centroids.dtype)
+    df = pd.DataFrame()
+    df['axis-0'] = cluster_centroids[:, 0]
+    df['axis-1'] = cluster_centroids[:, 1]
+    df['axis-2'] = cluster_centroids[:, 2]
+    return df
+
+
+def merge_detected_cells(options):
+    """
+    Combines deepblink and cellfinder output
+    Then runs dbscan on combined output, to remove duplication
+    :return:
+    """
+    analysis_dir_this_brain = options["out_name"]
+    signal_channel = get_signal_channels(options["channels"], options["background_channel"])[0] # TODO multiple signal channels
+    resolution_level_dir = os.path.join(analysis_dir_this_brain, settings.RESOLUTION_LEVEL_FOLDER_NAME)
+    cellfinder_output_dir = os.path.join(resolution_level_dir, settings.CELLFINDER_OUT_FOLDER_NAME)  # TODO multiple signal channels
+    deepblink_csv = os.path.join(resolution_level_dir, "output_deepblink", f"channel_{signal_channel}_cells.csv")
+    cellfinder_npy = os.path.join(cellfinder_output_dir, "all_detected_spots.npy")
+    merged_csv_path = os.path.join(cellfinder_output_dir, "points", "combined_cells_cellfinder_deepblink.csv")
+    dbscan_csv_path = os.path.join(cellfinder_output_dir, "points", "combined_cells_cellfinder_deepblink_dbscan.csv")
+
+    df = pd.read_csv(deepblink_csv)
+    deepblink_points = df[['axis-0', 'axis-1', 'axis-2']].to_numpy()
+    cellfinder_points = np.load(cellfinder_npy)
+    merged_points = np.concatenate([deepblink_points, cellfinder_points])
+    print("merged_points", merged_points.shape)
+
+    merged_df = pd.DataFrame()
+    merged_df['axis-0'] = merged_points[:,0]
+    merged_df['axis-1'] = merged_points[:,1]
+    merged_df['axis-2'] = merged_points[:,2]
+    merged_df.to_csv(merged_csv_path)
+
+    dbscan_df = run_dbscan_on_chunk(merged_df)
+    dbscan_df.to_csv(dbscan_csv_path)
+    os.rename(cellfinder_npy, os.path.join(os.path.dirname(cellfinder_npy), f"cellfinder_{os.path.basename(cellfinder_npy)}"))
+    points = dbscan_df[['axis-0', 'axis-1', 'axis-2']].to_numpy()
+    np.save(cellfinder_npy, points)
     return True
 
 
