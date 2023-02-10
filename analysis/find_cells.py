@@ -203,7 +203,7 @@ def run_dbscan_on_chunk(df):
     print("Points shape", points.shape)
 
     eps = 3
-    min_samples = 1
+    min_samples = 2
 
     # create a DBSCAN object
     dbscan = DBSCAN(eps=eps, min_samples=min_samples)
@@ -252,8 +252,21 @@ def merge_detected_cells(options):
     deepblink_csv = os.path.join(resolution_level_dir, "output_deepblink", f"channel_{signal_channel}_cells.csv")
     cellfinder_npy = os.path.join(cellfinder_output_dir, "all_detected_spots.npy")
     merged_csv_path = os.path.join(cellfinder_output_dir, "points", "combined_cells_cellfinder_deepblink.csv")
-    dbscan_csv_path = os.path.join(cellfinder_output_dir, "points", "combined_cells_cellfinder_deepblink_dbscan.csv")
+    dbscan_csv_path = os.path.join(cellfinder_output_dir, "points", "combined_cells_cellfinder_deepblink_dbscan_3_2.csv")
 
+    def restore_cellfinder_points():
+        all_detections = get_cells(os.path.join(cellfinder_output_dir, 'points', 'cells.xml'))
+        all_detected_spots = []
+
+        for cell in all_detections:
+            all_detected_spots.append([cell.z, cell.y, cell.x])
+
+        all_detected_spots = np.asarray(all_detected_spots)
+        np.save(os.path.join(cellfinder_output_dir, settings.DETECTED_SPOTS_FILE_NAME), all_detected_spots)
+
+    print("Restoring cellfinder points")
+    restore_cellfinder_points()
+    print("Restored")
     df = pd.read_csv(deepblink_csv)
     deepblink_points = df[['axis-0', 'axis-1', 'axis-2']].to_numpy()
     cellfinder_points = np.load(cellfinder_npy)
@@ -268,7 +281,10 @@ def merge_detected_cells(options):
 
     dbscan_df = run_dbscan_on_chunk(merged_df)
     dbscan_df.to_csv(dbscan_csv_path)
-    os.rename(cellfinder_npy, os.path.join(os.path.dirname(cellfinder_npy), f"cellfinder_{os.path.basename(cellfinder_npy)}"))
+    try:
+        os.rename(cellfinder_npy, os.path.join(os.path.dirname(cellfinder_npy), f"cellfinder_{os.path.basename(cellfinder_npy)}"))
+    except:
+        pass
     points = dbscan_df[['axis-0', 'axis-1', 'axis-2']].to_numpy()
     np.save(cellfinder_npy, points)
     return True
