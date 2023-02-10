@@ -12,6 +12,7 @@ from scipy.ndimage import zoom
 from fastai import *
 from fastai.vision.all import *
 from fastai.metrics import error_rate
+import tifffile
 
 from analysis import settings
 from analysis.utils import read_info_file, update_info_file, get_resolution_level_better_than_10um
@@ -73,6 +74,8 @@ def classify_cells_fastai(options):
 
     points_to_classify_npy = os.path.join(options["out_name"], 'all_detected_spots_imaris.npy')
     if not os.path.exists(points_to_classify_npy):
+        points_to_classify_npy = os.path.join(options["out_name"], 'resolution_level_x', 'output_full', 'all_detected_spots.npy')
+    if not os.path.exists(points_to_classify_npy):
         log.error(f"No imaris points npy file: {points_to_classify_npy}")
         return False
     save_results_to = os.path.join(cellfinder_output_folder, 'points')
@@ -93,6 +96,7 @@ def classify_cells_fastai(options):
     # Transform npy file to napari-compatible csv
     points = np.load(points_to_classify_npy)
     log.info(f"-----------Total points {points.shape[0]} -----------")
+    print(f"-----------Total points {points.shape[0]} -----------")
     points_df = pd.DataFrame()
     z_values = np.round(points[:, 0]).astype(int)
     y_values = np.round(points[:, 1]).astype(int)
@@ -104,25 +108,22 @@ def classify_cells_fastai(options):
     points_csv_name = os.path.join(os.path.dirname(points_to_classify_npy),
                                    os.path.basename(points_to_classify_npy).replace('.npy', '_napari.csv'))
     points_df.to_csv(points_csv_name)
-    sliding_window_inference_df = pd.DataFrame()
+    print("napari csv shape", points_df.shape)
+    n_cubes = points_df.shape[0]
 
-    df_inference = points_df
+    df_inference = points_df.copy()
     df_inference.rename(columns={'axis-0': 'axis_0', 'axis-1': 'axis_1', 'axis-2': 'axis_2'}, inplace=True)
-    n_cubes = df_inference.shape[0]
+    # n_cubes = df_inference.shape[0]
     df_inference['ann'] = ['unknown1'] * (n_cubes // 2) + ['unknown2'] * (n_cubes - n_cubes // 2)
-    data_sel = df_inference
-
-    # with open(dataset_info_file, "r") as f:
-    #     settings_str = f.read()
-    #     settings = json.loads(settings_str)
 
     resolution_level = options['resolution_level']
     ims_file = ims(options['ims_file_path'], ResolutionLevelLock=resolution_level)
 
     # Extract cubes the same way it is done in cellfinder
-    cube_shape = (20, 50, 50)
+    # cube_shape = (20, 50, 50)
     cube_shape2 = (20, 25, 25)
     img_shape = ims_file.metaData[resolution_level, 0, 0, 'shape'][-3:]
+    print("img_shape", img_shape)
 
     def get_cube_slicing2(z, y, x):
         """
@@ -171,8 +172,7 @@ def classify_cells_fastai(options):
                        get_y=get_y,
                        splitter=RandomSplitter(valid_pct=0.1))
 
-    dsets = dblock.datasets(data_sel)
-    dls = dblock.dataloaders(data_sel)
+    dls = dblock.dataloaders(df_inference)
 
     # create a learner
     print("Loading model")
@@ -187,10 +187,15 @@ def classify_cells_fastai(options):
         """
         Read a stack of TIFF files into a 3D numpy array.
         """
-        img = tifffile.imread(filenames[z_start:z_end][0])
+        img = np.expand_dims(tifffile.imread(filenames[z_start:z_end][0]), axis=0)
+        print("2d img", img.shape)
         for filename in filenames[z_start:z_end][1:]:
-            img = np.dstack((img, tifffile.imread(filename)))
+            img = np.concatenate((img, np.expand_dims(tifffile.imread(filename), axis=0)), axis=0)
+        print("3d img", img.shape)
         return img
+
+    def read_tiff_plane(filenames, z):
+        return np.expand_dims(tifffile.imread(filenames[z]), axis=0)
 
     def extract_boxes(img, partial_df, z_start):
         """
@@ -200,12 +205,13 @@ def classify_cells_fastai(options):
             """
             Extract cubes as cellfinder does, with zoom
             """
-            slice_z, slice_y, slice_x = get_cube_slicing2(r.axis_0 - z_start, r.axis_1, r.axis_2)  # todo: just 10 instead of r.axis_0 - z_start ?
+            slice_z, slice_y, slice_x = get_cube_slicing2(r['axis-0'] - z_start, r['axis-1'], r['axis-2'])  # todo: just 10 instead of r.axis_0 - z_start ?
             raw_cube = img[slice_z, slice_y, slice_x]  # todo: img[:, slice_y, slice_x] ?
             zoomed_cube = zoom(raw_cube, [1, 2, 2], order=2)
             return zoomed_cube
 
-        test_files = (get_x(x) for i, x in partial_df.iterrows())
+        test_files = [get_x(x) for i, x in partial_df.iterrows()]
+        print(len(test_files))
 
         return test_files
 
@@ -214,104 +220,92 @@ def classify_cells_fastai(options):
         """
         Implement the sliding window approach to read the TIFF stack and extract boxes.
         """
+        print("df", df.shape)
         out_df = []
         img = None
-        for z_start in range(0, len(filenames) - z_window_size):
+        total_rows = 0
+        for z_start in range(0, len(filenames) - box_size[0] + 1):
             z_end = z_start + box_size[0]
-            z_center = z_start + z_window_size // 2
-            partial_df = df[df[["axis-0"]] == z_center]
+            z_center = z_start + box_size[0] // 2
+            print("z start, z end, z center", z_start, z_end, z_center)
+            partial_df = df[df["axis-0"] == z_center]
+            print("partial_df", partial_df.shape)
             partial_df_complete = partial_df.loc[
                 (partial_df['axis-1'] >= box_size[1] // 2)
-                & (partial_df['axis-1'] <= img_shape[1] - box_size[1] // 2)
+                & (partial_df['axis-1'] <= img_shape[1] - box_size[1] // 2 - 1)
                 & (partial_df['axis-2'] >= box_size[2] // 2)
-                & (partial_df['axis-2'] <= img_shape[2] - box_size[2] // 2)
-            ]
+                & (partial_df['axis-2'] <= img_shape[2] - box_size[2] // 2 - 1)
+            ].copy()
+            print("partial_df_complete", partial_df_complete.shape)
             partial_df_incomplete = partial_df.loc[
                 (partial_df['axis-1'] < box_size[1] // 2)
-                | (partial_df['axis-1'] > img_shape[1] - box_size[1] // 2)
+                | (partial_df['axis-1'] > img_shape[1] - box_size[1] // 2 - 1)
                 | (partial_df['axis-2'] < box_size[2] // 2)
-                | (partial_df['axis-2'] > img_shape[2] - box_size[2] // 2)
-            ]
+                | (partial_df['axis-2'] > img_shape[2] - box_size[2] // 2 - 1)
+            ].copy()
+            print("partial_df_incomplete", partial_df_incomplete.shape)
             if img is None:
                 img = read_tiff_stack(filenames, z_start, z_end)
             else:
-                new_img = read_tiff_stack(filenames, z_end - 1, z_end)
-                img = np.dstack((img[1:, :, :], new_img))
+                new_img = read_tiff_plane(filenames, z_end - 1)
+                img = np.concatenate((img[1:, :, :], new_img), axis=0)
+            print("img", img.shape)
             boxes = extract_boxes(img, partial_df_complete, z_start)
-            test_dl = learn.dls.test_dl(boxes)
-            preds, _, decoded_values = learn.get_preds(dl=test_dl, with_decoded=True)
-            probabilities = [float(x[0]) for x in preds]
-            v = ["cell", "non_cell"]
-            decoded_values = [v[x] for x in decoded_values]
-            partial_df_complete['nn_decoded'] = decoded_values
-            partial_df_complete['prob'] = probabilities
-            partial_df_complete['incomplete'] = [False] * partial_df_complete.shape[0]
+            print("boxes", len(boxes))
+            if len(boxes):
+                test_dl = learn.dls.test_dl(boxes)
+                preds, _, decoded_values = learn.get_preds(dl=test_dl, with_decoded=True)
+                probabilities = [float(x[0]) for x in preds]
+                v = ["cell", "non_cell"]
+                decoded_values = [v[x] for x in decoded_values]
+                partial_df_complete['nn_decoded'] = decoded_values
+                partial_df_complete['prob'] = probabilities
+                partial_df_complete['incomplete'] = [False] * partial_df_complete.shape[0]
 
             partial_df_incomplete['nn_decoded'] = [''] * partial_df_incomplete.shape[0]
             partial_df_incomplete['prob'] = [np.nan] * partial_df_incomplete.shape[0]
             partial_df_incomplete['incomplete'] = [True] * partial_df_incomplete.shape[0]
             partial_df = pd.concat([partial_df_complete, partial_df_incomplete], ignore_index=True)
             out_df.append(partial_df)
+            total_rows += partial_df.shape[0]
+            print("total_rows", total_rows)
 
+        print("out_df", len(out_df), "==", 715)
         out_df = pd.concat(out_df, ignore_index=True)
         return out_df
 
-
-    # run inference
-    # points_limit = 500000
-    # parts = n_cubes // points_limit + 1
-    # prob = []
-    # decoded = []
-    # incomplete_cubes = []
-    # for part in range(parts):
-    #     start_row = part * points_limit
-    #     end_row = min([(part + 1) * points_limit -1, n_cubes])
-    #     partial_df = df_inference.loc[start_row: end_row]
-    #     print(f"Gathering inference cubes, part {part} of {parts}")
-    #     test_files = (get_x(x) for i, x in partial_df.iterrows())
-    #     incomplete = []  # some points are at the edges of the image, so cubes are incomplete
-    #     complete_test_files = []
-    #     for f in test_files:
-    #         complete = f.shape == cube_shape
-    #         incomplete.append(not complete)
-    #         if complete:
-    #             complete_test_files.append(f)
-    #     # partial_df['incomplete'] = incomplete
-    #     incomplete_cubes.extend(incomplete)
-    #     test_dl = learn.dls.test_dl(complete_test_files)
-    #
-    #     print(f"Running inference, part {part} of {parts}")
-    #     preds, _, decoded_values = learn.get_preds(dl=test_dl, with_decoded=True)
-    #     probabilities = [float(x[0]) for x in preds]
-    #     prob.extend(probabilities)
-    #     decoded.extend(decoded_values)
-
-    # save output
-    # print("Saving outputs")
-    # v = ["cell", "non_cell"]
-    # decoded_values = [v[x] for x in decoded]
-    # df_inference['incomplete'] = incomplete_cubes
-    # df_inference_complete = df_inference.loc[df_inference.incomplete == False].copy()
-    # df_inference_complete['nn_decoded'] = decoded_values
-    # df_inference_complete['prob'] = prob
-
-    df_low_z = points_df[points_df[['axis-0']] < cube_shape2[0] // 2]
+    df_low_z = points_df[points_df['axis-0'] < cube_shape2[0] // 2].copy()
+    print("df_low_z", df_low_z.shape)
     df_low_z['nn_decoded'] = [''] * df_low_z.shape[0]
     df_low_z['prob'] = [np.nan] * df_low_z.shape[0]
     df_low_z['incomplete'] = [True] * df_low_z.shape[0]
 
-    df_high_z = points_df[points_df[['axis-0']] > img_shape[0] - cube_shape2[0] // 2]
-    df_high_z['nn_decoded'] = [''] * df_low_z.shape[0]
-    df_high_z['prob'] = [np.nan] * df_low_z.shape[0]
-    df_high_z['incomplete'] = [True] * df_low_z.shape[0]
+    print("Last z classified", img_shape[0] - cube_shape2[0] // 2)
+    df_high_z = points_df[points_df['axis-0'] > img_shape[0] - cube_shape2[0] // 2].copy()
+    print("df_high_z", df_high_z.shape)
+    df_high_z['nn_decoded'] = [''] * df_high_z.shape[0]
+    df_high_z['prob'] = [np.nan] * df_high_z.shape[0]
+    df_high_z['incomplete'] = [True] * df_high_z.shape[0]
+
+    filenames = sorted(glob.glob(os.path.join(options['out_name'], 'resolution_level_x', f'channel_{signal_channels[0]}', '*.tif')))
+    print("filenames", len(filenames))
 
     df_inference_complete = sliding_window(filenames, points_df, cube_shape2)
+
+    print("Shape of df without leading and trailing z layers", df_inference_complete.shape)
+    df_inference_complete.to_csv(
+        os.path.join(
+            save_results_to,
+            f'predictions_{model_name}_{model_version}_test_no_beginning_no_end_z.csv'
+        )
+    )
     df_inference_complete = pd.concat([df_low_z, df_inference_complete, df_high_z], ignore_index=True)
+    print("Final predictions df", df_inference_complete.shape)
     print("Saving outputs")
     df_inference_complete.to_csv(
         os.path.join(
             save_results_to,
-            f'predictions_{model_name}_{model_version}_test.csv'
+            f'predictions_{model_name}_{model_version}.csv'
         )
     )
 
@@ -321,27 +315,28 @@ def classify_cells_fastai(options):
     # save classification results to napari compatible csv
     cells_df = pd.DataFrame()
     cells_df['index'] = list(range(df_inference_cells.shape[0]))
-    cells_df['axis-0'] = df_inference_cells.axis_0.to_list()
-    cells_df['axis-1'] = df_inference_cells.axis_1.to_list()
-    cells_df['axis-2'] = df_inference_cells.axis_2.to_list()
+    cells_df['axis-0'] = df_inference_cells['axis-0'].to_list()
+    cells_df['axis-1'] = df_inference_cells['axis-1'].to_list()
+    cells_df['axis-2'] = df_inference_cells['axis-2'].to_list()
     cells_df.to_csv(
         os.path.join(
             save_results_to,
-            f'predicted_cells_{model_name}_{model_version}_test.csv'
+            f'predicted_cells_{model_name}_{model_version}.csv'
         )
     )
 
     non_cells_df = pd.DataFrame()
     non_cells_df['index'] = list(range(df_inference_non_cells.shape[0]))
-    non_cells_df['axis-0'] = df_inference_non_cells.axis_0.to_list()
-    non_cells_df['axis-1'] = df_inference_non_cells.axis_1.to_list()
-    non_cells_df['axis-2'] = df_inference_non_cells.axis_2.to_list()
+    non_cells_df['axis-0'] = df_inference_non_cells['axis-0'].to_list()
+    non_cells_df['axis-1'] = df_inference_non_cells['axis-1'].to_list()
+    non_cells_df['axis-2'] = df_inference_non_cells['axis-2'].to_list()
     non_cells_df.to_csv(
         os.path.join(
             save_results_to,
-            f'predicted_non_cells_{model_name}_{model_version}_test.csv'
+            f'predicted_non_cells_{model_name}_{model_version}.csv'
         )
     )
     tfi = datetime.now()
     log.info(f"------------ Classification took {tfi - tst} -------------")
+    print(f"------------ Classification took {tfi - tst} -------------")
     return True
