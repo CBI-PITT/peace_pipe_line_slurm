@@ -54,8 +54,13 @@ while True:
         print("Starting processing")
         settings_file_path = json_files[0]
         setattr(settings, "SETTINGS_FILE_PATH", settings_file_path)
-        start_pipeline(settings_file_path)
-        os.rename(settings_file_path, os.path.join(settings.JSON_FOLDER, 'done', os.path.basename(settings_file_path)))
+        try:
+            start_pipeline(settings_file_path)
+        except Exception as e:
+            os.rename(settings_file_path,os.path.join(settings.JSON_FOLDER, 'err', os.path.basename(settings_file_path)))
+            print(f"ERROR: {e}")
+        else:
+            os.rename(settings_file_path, os.path.join(settings.JSON_FOLDER, 'done', os.path.basename(settings_file_path)))
     else:
         print("Waining 30 seconds...")
         time.sleep(30)
