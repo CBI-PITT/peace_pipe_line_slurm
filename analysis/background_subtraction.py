@@ -4,7 +4,6 @@ import glob
 import logging
 import os
 
-import cv2
 import numpy as np
 import tifffile
 from skimage.filters import threshold_minimum, threshold_triangle
@@ -17,6 +16,8 @@ from analysis.denoise import denoise_fft, denoise_fft_ellipse
 
 
 def subtract_background(img):
+    import cv2
+
     img = img.astype(np.float32)
     try:
         thr = threshold_minimum(img)
@@ -49,6 +50,8 @@ def subtract_background_coronal_plane(img):
     Mask is computed from denoised image with low cutoff frequency
     (blured signigicantly) for better thresholding.
     """
+    import cv2
+
     img_lf = denoise_fft_ellipse(img)
     img_lf = img_lf.astype(np.float32)
     try:
