@@ -13,6 +13,8 @@ NODE_NAME = os.uname().nodename
 json_settings = {}
 
 def start_pipeline(settings_file_path):
+    print("Starting pipeline")
+
     with open(settings_file_path, 'r') as f:
         settings_str = f.read()
         try:
@@ -43,6 +45,7 @@ def start_pipeline(settings_file_path):
     analysis_dir_this_brain = os.path.join(OUTPUT_FOLDER, os.path.basename(IMS_FILE))
     if not os.path.exists(analysis_dir_this_brain):
         os.makedirs(analysis_dir_this_brain)
+    print("Actions before local settings:", ACTIONS)
     do_analysis(IMS_FILE, analysis_dir_this_brain, ACTIONS)
 
 

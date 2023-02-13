@@ -5,13 +5,9 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 
-from imaris_ims_file_reader import ims
 import numpy as np
 import pandas as pd
 from scipy.ndimage import zoom
-from fastai import *
-from fastai.vision.all import *
-from fastai.metrics import error_rate
 
 from analysis import settings
 from analysis.utils import read_info_file, update_info_file, get_resolution_level_better_than_10um
@@ -32,6 +28,11 @@ def classify_cells_fastai(options):
     :param options: dict
     :return: None
     """
+    from fastai import CategoryBlock, DataBlock, RandomSplitter, TensorImage, TransformBlock, tensor, nn
+    from fastai.vision.all import vision_learner, resnet50
+    from fastai.metrics import error_rate
+    from imaris_ims_file_reader import ims
+
     # path = Path(options["out_name"])
     # analysis_folder = path.parent.absolute()
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
