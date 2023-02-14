@@ -189,7 +189,7 @@ def get_best_registration(options):
         for data_dir in pre_processed_data_dirs:
             registration_info_this_dir = registration_info.get(data_dir)
             if not registration_info_this_dir:
-                overlap, nmi = register_brain_one_channel(options, ims_file, channel=0, folder_prefix=data_dir)
+                overlap, nmi = register_brain_one_channel(options, ims_file, channel=channel, folder_prefix=data_dir)
                 if overlap is None or nmi is None:
                     log.error(f"Overlap or NMI wasn't computed for dir {data_dir}")
                     continue
