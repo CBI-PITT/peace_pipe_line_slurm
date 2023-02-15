@@ -1,4 +1,5 @@
 from glob import glob
+import json
 import logging
 import os
 from pathlib import Path
@@ -8,10 +9,8 @@ from datetime import datetime
 from imaris_ims_file_reader import ims
 import numpy as np
 import pandas as pd
+import tifffile
 from scipy.ndimage import zoom
-from fastai import *
-from fastai.vision.all import *
-from fastai.metrics import error_rate
 import tifffile
 
 from analysis import settings
@@ -33,6 +32,11 @@ def classify_cells_fastai(options):
     :param options: dict
     :return: None
     """
+    from fastai.data.all import CategoryBlock, DataBlock, RandomSplitter, TensorImage, TransformBlock, Tuple, tensor, nn
+    from fastai.vision.all import vision_learner, resnet50
+    from fastai.metrics import error_rate
+    from imaris_ims_file_reader import ims
+
     # path = Path(options["out_name"])
     # analysis_folder = path.parent.absolute()
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
@@ -287,7 +291,7 @@ def classify_cells_fastai(options):
     df_high_z['prob'] = [np.nan] * df_high_z.shape[0]
     df_high_z['incomplete'] = [True] * df_high_z.shape[0]
 
-    filenames = sorted(glob.glob(os.path.join(options['out_name'], 'resolution_level_x', f'channel_{signal_channels[0]}', '*.tif')))
+    filenames = sorted(glob(os.path.join(options['out_name'], 'resolution_level_x', f'channel_{signal_channels[0]}', '*.tif')))
     print("filenames", len(filenames))
 
     df_inference_complete = sliding_window(filenames, points_df, cube_shape2)
