@@ -6,7 +6,6 @@ import sys
 import tifffile
 from dask.delayed import delayed
 import dask
-from imaris_ims_file_reader import ims
 
 from analysis.contrast_stretching import stretch_contrast, stretch_contrast_and_denoise
 from analysis.background_subtraction import subtract_background, subtract_background_iterative
@@ -122,6 +121,8 @@ def pre_process(options):
     :param options: dict
     :return: bool
     """
+    from imaris_ims_file_reader import ims
+
     parent_folder = os.path.join(options['out_name'], "resolution_level_x")
     ims_file = ims(options["ims_file_path"])
     retrieve_fft_first_harmonic(options)
@@ -142,6 +143,7 @@ def retrieve_fft_first_harmonic(options):
     :return: None
     """
     from analysis.remove_stripes import calculate_first_harmonic_from_stitching, calculate_first_harmonic_from_majority
+    from imaris_ims_file_reader import ims
 
     ims_file = ims(options["ims_file_path"])
     analysis_dir_this_brain = options['out_name']

@@ -3,9 +3,6 @@ import logging
 import glob
 
 import tifffile
-from imaris_ims_file_reader import ims
-import bg_space as bgs
-from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 from skimage.transform import resize
 from skimage import metrics
 
@@ -25,6 +22,9 @@ def guess_orientation(ims_file, save_100um_volume=False, out_dir=None):
     :param out_dir: str, folder to save 100 um volume
     :return: str ('sal' or 'spr')
     """
+    from bg_atlasapi.bg_atlas import BrainGlobeAtlas
+    import bg_space as bgs
+
     log.info(f"Guessing orientation for {ims_file.filePathComplete}")
     atlas = BrainGlobeAtlas("allen_mouse_100um")
     volume_100um = ims_file.get_Volume_At_Specific_Resolution()  # determine for channel 0

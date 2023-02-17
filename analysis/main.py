@@ -43,10 +43,12 @@ def do_analysis(ims_file_path, analysis_dir_this_brain, operations_to_perform):
     :param output_folder: folder to save analysis results
     :return: None
     """
+    print("Doing analysis")
     host = os.uname().nodename
     try:
         ims_file = ims(ims_file_path)
-    except:  # couldn't read a file
+    except Exception as e:  # couldn't read a file
+        print("Couldn't read a file", e)
         return
 
     if not os.path.exists(os.path.join(analysis_dir_this_brain, settings.INFO_FILE_NAME)):
@@ -73,7 +75,7 @@ def do_analysis(ims_file_path, analysis_dir_this_brain, operations_to_perform):
         else:
             operations_to_perform_adjusted.append(operation)
 
-    print("Actions:", operations_to_perform_adjusted)
+    print("Actions after local settings:", operations_to_perform_adjusted)
 
     for operation in operations_to_perform_adjusted:
         log.info(f"Performing operation: {operation}")

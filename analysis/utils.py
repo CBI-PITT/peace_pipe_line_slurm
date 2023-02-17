@@ -6,7 +6,6 @@ import os
 
 import dask
 import dask.array as da
-from imaris_ims_file_reader import ims
 from patchify import patchify, unpatchify
 import numpy as np
 import tifffile
@@ -197,6 +196,8 @@ def update_in_progress_files_json(host, ims_file_path=None, operation=None, remo
 
 
 def ensure_tiffs_extracted(channel, options):
+    from imaris_ims_file_reader import ims
+
     parent_folder = os.path.join(options['out_name'], "resolution_level_x")
     tiff_series_dir = os.path.join(parent_folder, f"channel_{channel}")
     extracted_tiffs = glob(os.path.join(tiff_series_dir, '*.tif'))

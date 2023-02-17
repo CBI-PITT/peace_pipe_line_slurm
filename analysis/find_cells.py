@@ -9,12 +9,6 @@ import dask
 import numpy as np
 import pandas as pd
 import tifffile
-import bg_space as bgs
-from bg_atlasapi.bg_atlas import BrainGlobeAtlas
-from cellfinder.analyse.analyse import transform_points_to_downsampled_space
-from cellfinder.main import get_downsampled_space
-from imlib.IO.cells import get_cells
-from imaris_ims_file_reader import ims
 
 from analysis import settings
 from analysis.guess_background_channel import guess_background
@@ -63,6 +57,10 @@ def transform_points_downsampled_to_atlas_space(
 
 
 def detect_cells(options):
+    from bg_atlasapi.bg_atlas import BrainGlobeAtlas
+    from imlib.IO.cells import get_cells
+    from imaris_ims_file_reader import ims
+
     log.info('Starting cell detection ...')
     analysis_dir_this_brain = options["out_name"]
     ims_file = ims(options['ims_file_path'])  # TODO: pass ims file object instead of path str
@@ -245,6 +243,8 @@ def merge_detected_cells(options):
     Then runs dbscan on combined output, to remove duplication
     :return:
     """
+    from imlib.IO.cells import get_cells
+
     analysis_dir_this_brain = options["out_name"]
     signal_channel = get_signal_channels(options["channels"], options["background_channel"])[0] # TODO multiple signal channels
     resolution_level_dir = os.path.join(analysis_dir_this_brain, settings.RESOLUTION_LEVEL_FOLDER_NAME)
