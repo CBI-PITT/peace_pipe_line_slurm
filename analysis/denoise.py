@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 
 
@@ -33,6 +32,8 @@ def denoise_fft_ellipse(image):
     Coronal plane images have small height (few z layers) and large width (many x points).
     It makes sense to use different cutoff frequencies for z and x directions.
     """
+    import cv2
+
     img_float = image.astype(np.float32)
 
     H, W = img_float.shape

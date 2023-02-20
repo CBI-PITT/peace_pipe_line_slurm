@@ -10,7 +10,6 @@ import numpy as np
 import tifffile
 from scipy.ndimage import gaussian_filter
 from skimage.metrics import normalized_mutual_information
-from imaris_ims_file_reader import ims
 
 from analysis import settings
 from analysis.pre_process import pre_process_brain_faster
@@ -129,6 +128,8 @@ def register_brain(options, folder_prefix=None):
     """
     Register all channels.
     """
+    from imaris_ims_file_reader import ims
+
     log.info(f"Registering all channels at {options['out_name']}")
     ims_file_path = options["ims_file_path"]
     ims_file = ims(ims_file_path)
@@ -167,6 +168,8 @@ def get_best_registration(options):
     """
     Attempt different pre-processings to improve the registration.
     """
+    from imaris_ims_file_reader import ims
+
     ims_file = ims(options["ims_file_path"])
     analysis_dir_this_brain = options['out_name']
     registration_info = read_registration_info_file(analysis_dir_this_brain)

@@ -4,10 +4,6 @@ import os
 from pathlib import Path
 import shutil
 
-from bg_atlasapi.bg_atlas import BrainGlobeAtlas
-from imaris_ims_file_reader import ims
-from imlib.IO.cells import save_cells
-from imlib.cells.cells import Cell
 import numpy as np
 import pandas as pd
 
@@ -31,6 +27,8 @@ def classify_cells(options):
     :param options: dict
     :return: None
     """
+    from bg_atlasapi.bg_atlas import BrainGlobeAtlas
+
     path = Path(options["out_name"])
     analysis_folder = path.parent.absolute()
     path_to_model_file = os.path.join(analysis_folder, settings.MODEL_PATH_FILE)
@@ -99,6 +97,9 @@ def save_cells_imaris(options):
     :param options: dict
     :return: bool: success flag
     """
+    from imlib.IO.cells import save_cells
+    from imlib.cells.cells import Cell
+
     def _look_for_csv(parent_dir, ims_file_name):
         csv_files = []
         for root, dirs, files in os.walk(parent_dir):

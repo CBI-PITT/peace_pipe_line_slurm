@@ -11,15 +11,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import tifffile
-import ulid
-
-import bg_space as bgs
-from bg_atlasapi.bg_atlas import BrainGlobeAtlas
-from cellfinder.analyse.analyse import transform_points_to_downsampled_space
-from cellfinder.main import get_downsampled_space
-from imlib.IO.cells import get_cells
-
-from imaris_ims_file_reader import ims
 
 from analysis import settings, local_settings
 from analysis.classify_cells import save_cells_imaris
@@ -143,6 +134,8 @@ def analyze_cells_cellfinder(options):
     :param options:
     :return:
     """
+    from imlib.IO.cells import get_cells
+
     register_brain(options)
 
     cellfinder_output_folder = os.path.join(
@@ -215,6 +208,12 @@ def analyze_cells(options):
     }
     :return: csv file path
     """
+    from cellfinder.analyse.analyse import transform_points_to_downsampled_space
+    from cellfinder.main import get_downsampled_space
+    import bg_space as bgs
+    from bg_atlasapi.bg_atlas import BrainGlobeAtlas
+    import ulid
+
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
     local_settings.update_settings(settings, settings_file)
     cellfinder_output_folder = os.path.join(
