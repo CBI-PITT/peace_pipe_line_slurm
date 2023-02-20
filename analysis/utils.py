@@ -6,8 +6,6 @@ import os
 
 import dask
 import dask.array as da
-from imaris_ims_file_reader import ims
-from patchify import patchify, unpatchify
 import numpy as np
 import tifffile
 from numpy.lib.stride_tricks import as_strided
@@ -315,6 +313,7 @@ def split_in_chunks_nd_no_overlap(img, chunk_shape):
 
 
 def merge_chunks_nd_no_overlap(chunks, img_shape, chunk_shape):
+    from patchify import unpatchify
     ndim = len(img_shape)
     ratios = (np.array(img_shape) / np.array(chunk_shape)).astype(int)
     ratios += 1
