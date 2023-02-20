@@ -372,3 +372,107 @@ def merge_chunks_nd_no_overlap(chunks, img_shape, chunk_shape):
 #     chunk_shape_plus_overlap = chunk_shape + 2 * overlap
 #     patches = patchify_fn(img, chunk_shape_plus_overlap, step=chunk_shape)
 #     return patches
+
+
+def get_db_connection():
+    if settings.DB_TYPE == 'sqlite3':
+        con = sqlite3.connect(settings.DB_LOCATION)
+    elif settings.DB_TYPE == 'mysql':
+        import mysql.connector
+        con = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="password"   # TODO: set in .env file
+        )
+        cur = con.cursor()
+        cur.execute(f"USE {settings.MYSQL_DB_NAME}")
+    else:
+        con = None
+    return con
+
+
+def create_metadata_record(ims_file):
+    import ulid
+    from imaris_ims_file_reader import ims
+
+    uuid = ulid.new()
+    f = ims(ims_file)
+    n_channels = f.Channels
+    voxel_spacing = f.metaData[0, 0, 0, 'resolution']
+    voxel_spacing_units = 'um'
+    con = get_db_connection()
+    cur = con.cursor()
+    res = cur.execute(  # TODO this is unsafe
+        f'''INSERT OR IGNORE INTO metadata(uuid, file_path, n_channels, voxel_spacing, voxel_spacing_units) VALUES("{uuid}", "{ims_file}", "{n_channels}", "{voxel_spacing}", "{voxel_spacing_units}")'''
+    )
+    con.commit()
+    con.close()
+
+
+def save_metadata_to_db(ims_files):
+    # TODO: for each imaris file, check whether record exists already
+    # handle changing paths
+    # create the record, create uuid, fill file path
+    # save metadata contained in the imaris file to the db
+    for file in ims_files:
+        con = get_db_connection()
+        cur = con.cursor()
+        records = cur.execute(f"SELECT * FROM metadata WHERE file_path LIKE '%{os.path.basename(file)}%'").fetchall()
+        if not records:
+            create_metadata_record(file)
+        else:
+            # TODO analyze records
+            pass
+
+
+def get_db_location_sqlalchemy():
+    if settings.DB_TYPE == 'sqlite3':
+        location = f'sqlite:///{settings.DB_LOCATION}'
+    elif settings.DB_TYPE == 'mysql':
+        location = f'mysql+pymysql://root:password@localhost/{settings.MYSQL_DB_NAME}'
+    else:
+        location = None
+    return location
+
+
+def create_metadata_table():
+    from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String
+
+    database_location = get_db_location_sqlalchemy()
+    engine = create_engine(database_location)
+    metadata = MetaData()
+
+    # Check if the metadata table exists
+    metadata_table = Table('metadata', metadata, autoload=True, autoload_with=engine)
+    if metadata_table.exists():
+        print("Table 'metadata' already exists")
+        return
+
+    # Create the metadata table if it doesn't exist
+    metadata_table = Table('metadata', metadata,
+        Column('id', Integer, primary_key=True),
+        Column('uuid', String(50), unique=True, nullable=False),
+        Column('file_path', String(200), nullable=False),
+        Column('pi', String(50)),
+        Column('experiment_number', String(50)),
+        Column('dataset_name', String(50)),
+        Column('animal_id', String(50)),
+        Column('stain', String(50)),
+        Column('n_channels', Integer),
+        Column('colors', String(50)),
+        Column('orientation', String(50)),
+        Column('voxel_spacing', String(50)),
+        Column('voxel_spacing_units', String(50)),
+        Column('treatment', String(50)),
+        Column('full_brain', Integer, default=1),
+        Column('modality', String(50)),
+        Column('microscope', String(50)),
+        Column('organism_type', String(50)),
+        Column('technique', String(50)),
+        Column('method', String(50)),
+        Column('grant_number', String(50)),
+        Column('doi', String(50)),
+        Column('time_point', Integer)
+    )
+
+    metadata.create_all(engine)

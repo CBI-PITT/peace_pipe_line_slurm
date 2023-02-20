@@ -24,7 +24,11 @@ from imaris_ims_file_reader import ims
 from analysis import settings, local_settings
 from analysis.classify_cells import save_cells_imaris
 from analysis.register_brains import register_brain, get_path_to_best_registration
-from analysis.utils import get_resolution_level_better_than_10um, get_signal_channels
+from analysis.utils import (
+    get_resolution_level_better_than_10um,
+    get_signal_channels,
+    get_db_connection, create_metadata_table, create_metadata_record
+)
 
 log = logging.getLogger(__name__)
 
@@ -434,12 +438,20 @@ def save_to_db(options):
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
     local_settings.update_settings(settings, settings_file)
     df = analyze_cells(options)
-    con = sqlite3.connect(settings.DB_LOCATION)
+    con = get_db_connection()
     df.to_sql('cell', con, if_exists='append', index=False)
     con.commit()
     con.close()
     log.info('Created database records for detected cells')
     print("Done saving to db")
+
+
+def save_metadata_to_db(options):
+    # TODO: create database cells if not exists? (for MySQL only)
+    # create table metadata if not exists
+    create_metadata_table()
+    # insert new metadata record
+    create_metadata_record(options["ims_file_path"])
 
 
 if __name__ == "__main__":

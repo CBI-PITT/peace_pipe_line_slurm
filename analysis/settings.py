@@ -30,6 +30,8 @@ REGISTRATION_INFO_FILE_NAME = "registration_info.json"
 MODEL_PATH_FILE = "model_to_use"  # model for cellfinder ResNet-50 classification
 DEEPBLINK_MODEL_PATH = '/CBI_Hive/CBI/Iana/src/deepblink/models/deepblink_particle.h5'  # model for deepBlink cell detection
 DEEPBLINK_CHUNK_SIZE = (40, 1700, 3500)
+DB_TYPE = "mysql"
+MYSQL_DB_NAME = "cells"
 
 DASK_ALLOWED_NODES = ['pollux', 'deneb']  # machines allowed to use dask
 
