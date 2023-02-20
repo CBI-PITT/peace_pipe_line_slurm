@@ -377,38 +377,58 @@ def merge_chunks_nd_no_overlap(chunks, img_shape, chunk_shape):
 
 
 def get_db_connection():
-    if settings.DB_TYPE == 'sqlite3':
-        con = sqlite3.connect(settings.DB_LOCATION)
-    elif settings.DB_TYPE == 'mysql':
-        import mysql.connector
-        con = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="password"   # TODO: set in .env file
-        )
-        cur = con.cursor()
-        cur.execute(f"USE {settings.MYSQL_DB_NAME}")
-    else:
-        con = None
-    return con
+    from sqlalchemy import create_engine
+
+    database_url = get_db_location_sqlalchemy()
+    engine = create_engine(database_url)
+    conn = engine.raw_connection()
+    return conn
+
+
+def insert_metadata(database_url, metadata_values):
+    from sqlalchemy import create_engine, MetaData, Table, insert
+
+    engine = create_engine(database_url)
+    metadata = MetaData()
+
+    # Reflect the metadata table
+    metadata.reflect(bind=engine, only=['metadata'])
+    metadata_table = metadata.tables['metadata']
+
+    # Insert the metadata values
+    conn = engine.connect()
+    conn.execute(insert(metadata_table).values(metadata_values))
+    conn.commit()
+    conn.close()
+    print("Created metadata record")
 
 
 def create_metadata_record(ims_file):
     import ulid
     from imaris_ims_file_reader import ims
 
+    con = get_db_connection()
+    cur = con.cursor()
+    # records = cur.execute(f"SELECT * FROM metadata WHERE file_path LIKE '%{os.path.basename(ims_file)}%'").fetchall()
+    records = cur.execute(f"SELECT * FROM metadata WHERE file_path LIKE '%{os.path.basename(ims_file)}%'") # TODO
+    if records:
+        print("Record already exists")
+        return
+
     uuid = ulid.new()
     f = ims(ims_file)
     n_channels = f.Channels
     voxel_spacing = f.metaData[0, 0, 0, 'resolution']
     voxel_spacing_units = 'um'
-    con = get_db_connection()
-    cur = con.cursor()
-    res = cur.execute(  # TODO this is unsafe
-        f'''INSERT OR IGNORE INTO metadata(uuid, file_path, n_channels, voxel_spacing, voxel_spacing_units) VALUES("{uuid}", "{ims_file}", "{n_channels}", "{voxel_spacing}", "{voxel_spacing_units}")'''
-    )
-    con.commit()
-    con.close()
+    db_location = get_db_location_sqlalchemy()
+    metadata_values = {
+        "uuid": str(uuid),
+        "file_path": ims_file,
+        "n_channels": n_channels,
+        "voxel_spacing": str(voxel_spacing),
+        "voxel_spacing_units": voxel_spacing_units
+    }
+    insert_metadata(db_location, metadata_values)
 
 
 def save_metadata_to_db(ims_files):
@@ -445,8 +465,8 @@ def create_metadata_table():
     metadata = MetaData()
 
     # Check if the metadata table exists
-    metadata_table = Table('metadata', metadata, autoload=True, autoload_with=engine)
-    if metadata_table.exists():
+    con = engine.connect()
+    if engine.dialect.has_table(con, 'metadata'):
         print("Table 'metadata' already exists")
         return
 
@@ -478,3 +498,57 @@ def create_metadata_table():
     )
 
     metadata.create_all(engine)
+
+
+def create_cell_table():
+    from sqlalchemy import create_engine, Table, Column, Integer, Text, Float, Boolean, MetaData
+
+    database_location = get_db_location_sqlalchemy()
+    engine = create_engine(database_location)
+    metadata = MetaData()
+
+    # Define the "cell" table schema
+    cell_table = Table(
+        'cell',
+        metadata,
+        Column('uuid', Text),
+        Column('time_point', Integer),
+        Column('channel', Integer),
+        Column('z_raw', Float),
+        Column('y_raw', Float),
+        Column('x_raw', Float),
+        Column('raw_coord_units', Text),
+        Column('z_raw_px', Integer),
+        Column('y_raw_px', Integer),
+        Column('x_raw_px', Integer),
+        Column('is_cell', Boolean),
+        Column('type', Text),
+        Column('atlas_name', Text),
+        Column('atlas_resolution', Text),
+        Column('z_downsampled', Integer),
+        Column('y_downsampled', Integer),
+        Column('x_downsampled', Integer),
+        Column('z_transformed', Float),
+        Column('y_transformed', Float),
+        Column('x_transformed', Float),
+        Column('transformed_coord_units', Text),
+        Column('z_transformed_px', Integer),
+        Column('y_transformed_px', Integer),
+        Column('x_transformed_px', Integer),
+        Column('atlas_structure_name', Text),
+        Column('atlas_structure_acronym', Text),
+        Column('atlas_structure_number', Integer),
+        Column('metadata', Integer)
+    )
+
+    # Create the "cell" table
+    conn = engine.connect()
+    if engine.dialect.has_table(conn, 'cell'):
+        print("Table 'cell' already exists")
+        return
+
+    cell_table.create(bind=conn, checkfirst=True)
+    conn.commit()
+    conn.close()
+
+    print("Table 'cell' created")

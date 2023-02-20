@@ -18,7 +18,7 @@ from analysis.register_brains import register_brain, get_path_to_best_registrati
 from analysis.utils import (
     get_resolution_level_better_than_10um,
     get_signal_channels,
-    get_db_connection, create_metadata_table, create_metadata_record
+    get_db_connection, create_metadata_table, create_metadata_record, create_cell_table, get_db_location_sqlalchemy
 )
 
 log = logging.getLogger(__name__)
@@ -434,10 +434,21 @@ def analyze_cells(options):
 
 
 def save_to_db(options):
+    from sqlalchemy import create_engine
+
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
     local_settings.update_settings(settings, settings_file)
+    save_metadata_to_db(options)
+    create_cell_table()
     df = analyze_cells(options)
-    con = get_db_connection()
+    df = df[["uuid", "time_point", "channel", "z_raw", "y_raw", "x_raw", "raw_coord_units",
+             "z_raw_px", "y_raw_px", "x_raw_px", "is_cell", "type", "atlas_name", "atlas_resolution",
+             "z_downsampled", "y_downsampled", "x_downsampled", "z_transformed", "y_transformed", "x_transformed",
+             "transformed_coord_units", "z_transformed_px", "y_transformed_px", "x_transformed_px",
+             "atlas_structure_name", "atlas_structure_acronym", "atlas_structure_number", "metadata"]]
+    location = get_db_location_sqlalchemy()
+    engine = create_engine(location)
+    con = engine.connect()
     df.to_sql('cell', con, if_exists='append', index=False)
     con.commit()
     con.close()
@@ -446,7 +457,7 @@ def save_to_db(options):
 
 
 def save_metadata_to_db(options):
-    # TODO: create database cells if not exists? (for MySQL only)
+    # TODO: create database if not exists? (for MySQL only)
     # create table metadata if not exists
     create_metadata_table()
     # insert new metadata record
