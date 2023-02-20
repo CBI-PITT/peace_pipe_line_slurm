@@ -4,9 +4,6 @@ import os
 
 import numpy as np
 from scipy import fft
-from imaris_ims_file_reader import ims
-import bg_space as bgs
-from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 from skimage.transform import resize
 from skimage import metrics
 import tifffile
@@ -64,6 +61,9 @@ def guess_by_nmi(ims_file, save_100um_volume=False, out_dir=None):
     Again NMI :)
     Works as good as histogram method
     """
+    from bg_atlasapi.bg_atlas import BrainGlobeAtlas
+    import bg_space as bgs
+
     if out_dir:
         try:
             options = read_info_file(out_dir)

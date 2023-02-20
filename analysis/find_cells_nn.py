@@ -11,7 +11,6 @@ import dask.array as da
 import numpy as np
 import pandas as pd
 import tifffile
-from imaris_ims_file_reader import ims
 
 from analysis.settings import (
     DEEPBLINK_CHUNK_SIZE,
@@ -27,6 +26,8 @@ USE_DASK = os.uname().nodename in DASK_ALLOWED_NODES
 
 
 def detect_cells_nn(options):
+    from imaris_ims_file_reader import ims
+
     tst = datetime.now()
     analysis_dir_this_brain = options["out_name"]
     out_directory = os.path.join(analysis_dir_this_brain, RESOLUTION_LEVEL_FOLDER_NAME)

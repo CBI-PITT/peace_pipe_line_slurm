@@ -6,12 +6,10 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 
-from imaris_ims_file_reader import ims
 import numpy as np
 import pandas as pd
 import tifffile
 from scipy.ndimage import zoom
-import tifffile
 
 from analysis import settings
 from analysis.utils import read_info_file, update_info_file, get_resolution_level_better_than_10um

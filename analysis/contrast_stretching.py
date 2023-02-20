@@ -7,17 +7,10 @@ import os
 import re
 import subprocess
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tifffile
 from skimage import exposure, restoration
-import bg_space as bgs
-from bg_atlasapi.bg_atlas import BrainGlobeAtlas
-from cellfinder.analyse.analyse import transform_points_to_downsampled_space
-from cellfinder.main import get_downsampled_space
-from imlib.IO.cells import get_cells
-from imaris_ims_file_reader import ims
 
 from analysis.denoise import denoise_fft
 
