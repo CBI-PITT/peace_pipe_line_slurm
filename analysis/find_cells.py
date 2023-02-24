@@ -246,23 +246,32 @@ def merge_detected_cells(options):
     from imlib.IO.cells import get_cells
 
     analysis_dir_this_brain = options["out_name"]
-    signal_channel = get_signal_channels(options["channels"], options["background_channel"])[0] # TODO multiple signal channels
+    signal_channels = sorted(get_signal_channels(options["channels"], options["background_channel"]))
+    signal_channel = options.get("signal_channel", signal_channels[0])
     resolution_level_dir = os.path.join(analysis_dir_this_brain, settings.RESOLUTION_LEVEL_FOLDER_NAME)
-    cellfinder_output_dir = os.path.join(resolution_level_dir, settings.CELLFINDER_OUT_FOLDER_NAME)  # TODO multiple signal channels
+    cellfinder_output_dir = os.path.join(resolution_level_dir, settings.CELLFINDER_OUT_FOLDER_NAME)
+    if len(signal_channels) == 1:
+        cellfinder_output_folders = [cellfinder_output_dir]
+    else:
+        cellfinder_output_folders = []
+        for channel in range(len(signal_channels)):
+            cellfinder_output_folders.append(os.path.join(cellfinder_output_dir, f"channel_{channel}"))
     deepblink_csv = os.path.join(resolution_level_dir, "output_deepblink", f"channel_{signal_channel}_cells.csv")
     cellfinder_npy = os.path.join(cellfinder_output_dir, "all_detected_spots.npy")
     merged_csv_path = os.path.join(cellfinder_output_dir, "points", "combined_cells_cellfinder_deepblink.csv")
     dbscan_csv_path = os.path.join(cellfinder_output_dir, "points", "combined_cells_cellfinder_deepblink_dbscan_3_2.csv")
 
     def restore_cellfinder_points():
-        all_detections = get_cells(os.path.join(cellfinder_output_dir, 'points', 'cells.xml'))
+        points_dir = cellfinder_output_folders[signal_channels.index(signal_channel)]
+        all_detections = get_cells(os.path.join(points_dir, 'points', 'cells.xml'))
         all_detected_spots = []
 
         for cell in all_detections:
             all_detected_spots.append([cell.z, cell.y, cell.x])
 
         all_detected_spots = np.asarray(all_detected_spots)
-        np.save(os.path.join(cellfinder_output_dir, settings.DETECTED_SPOTS_FILE_NAME), all_detected_spots)
+        np.save(os.path.join(points_dir, settings.DETECTED_SPOTS_FILE_NAME), all_detected_spots)
+        np.save(cellfinder_npy, all_detected_spots)
 
     print("Restoring cellfinder points")
     restore_cellfinder_points()
