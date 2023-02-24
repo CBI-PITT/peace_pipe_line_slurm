@@ -23,6 +23,7 @@ DETECTED_SPOTS_IMARIS_FILE_NAME = 'all_detected_spots_imaris.npy'
 TRANSFORMED_SPOTS_FILE_NAME = 'all_detected_spots_transformed.npy'
 TRANSFORMED_CELLS_FILE_NAME = 'classified_cells_transformed.npy'
 RESOLUTION_LEVEL_FOLDER_NAME = 'resolution_level_x'
+RANDOM_FOREST_MASK_FOLDER_NAME = 'bg_fg_mask_apoc'
 CELLS_DATAFRAME_NAME_PATTERN = 'spots_detailed_info_{}.csv'
 LOG_FILE_NAME_PATTERN = "/CBI_Hive/CBI/Iana/logs/analysis_pipeline_log_{}_{}.txt"
 TIMESTAMP_FORAMT = '%Y-%m-%d_%H:%M:%S'
