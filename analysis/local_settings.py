@@ -7,6 +7,8 @@ def update_settings(settings, config_file):
         settings.PYTORCH_MODEL_PATH = config.get("PYTORCH_MODEL_PATH")
         settings.PYTORCH_MODEL_NAME = config.get("PYTORCH_MODEL_NAME")
         settings.DB_LOCATION = config.get("DB_LOCATION")
+        settings.DB_TYPE = config.get("DB_TYPE")
+        settings.MYSQL_DB_NAME = config.get("MYSQL_DB_NAME")
         settings.PYTORCH_MODEL_VERSION = config.get("PYTORCH_MODEL_VERSION")
         settings.DATAFRAME_VERSION = config.get("DATAFRAME_VERSION")
 

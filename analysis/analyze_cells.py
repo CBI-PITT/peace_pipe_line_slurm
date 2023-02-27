@@ -18,7 +18,10 @@ from analysis.register_brains import register_brain, get_path_to_best_registrati
 from analysis.utils import (
     get_resolution_level_better_than_10um,
     get_signal_channels,
-    get_db_connection, create_metadata_table, create_metadata_record, create_cell_table, get_db_location_sqlalchemy
+)
+from analysis.db_utils import (
+    get_db_location_sqlalchemy, get_db_connection, create_metadata_table, create_metadata_record, create_cell_table,
+    metadata_table_exists, metadata_record_exists, Metadata
 )
 
 log = logging.getLogger(__name__)
@@ -260,7 +263,7 @@ def analyze_cells(options):
     )
 
     classification_df = pd.read_csv(path_to_classification_df)
-    classification_df_coords = classification_df.drop(classification_df.columns[[0, 1, 5, 6, 7, 8]], axis=1)
+    classification_df_coords = classification_df[["axis-0", "axis-1", "axis-2"]]
     all_detected_spots = classification_df_coords.to_numpy()
     all_detected_spots_downsampled = transform_points_to_downsampled_space(
         all_detected_spots, downsampled_space, source_space
@@ -438,6 +441,11 @@ def save_to_db(options):
 
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
     local_settings.update_settings(settings, settings_file)
+    print("db_location", settings.DB_LOCATION)
+    print("db_type", settings.DB_TYPE)
+    if metadata_record_exists(options["ims_file_path"]):
+        print("Metadata record exists")
+        return False
     save_metadata_to_db(options)
     create_cell_table()
     df = analyze_cells(options)
@@ -454,21 +462,28 @@ def save_to_db(options):
     con.close()
     log.info('Created database records for detected cells')
     print("Done saving to db")
+    return True
 
 
 def save_metadata_to_db(options):
     # TODO: create database if not exists? (for MySQL only)
     # create table metadata if not exists
-    create_metadata_table()
+    from sqlalchemy.orm import DeclarativeBase
+    from sqlalchemy import create_engine
+
+    class Base(DeclarativeBase):
+        pass
+
+    location = get_db_location_sqlalchemy()
+    engine = create_engine(location)
+
+    if not metadata_table_exists():
+        print("creating metadata table")
+        # Base.metadata.create_all(engine)
+        print("created metadata table")
+        create_metadata_table()
     # insert new metadata record
-    create_metadata_record(options["ims_file_path"])
-
-
-if __name__ == "__main__":
-    main(
-        # '/CBI_Hive/Public/klimstra-w/2020 - 02CL19/analyze.txt',
-        # '/CBI_Hive/Public/klimstra-w/2020 - 02CL19/register_to_atlas.txt',
-        '/CBI_Hive/Public/freyberg-z/02CL22/analysis/register.txt',
-        ''
-        # '/CBI_Hive/Public/klimstra-w/2020 - 02CL19/analysis/cells_detailed_info.csv'
-    )
+    if not metadata_record_exists(options["ims_file_path"]):
+        print("Creating metadata record")
+        create_metadata_record(options["ims_file_path"])
+        print("Created metadata record")
