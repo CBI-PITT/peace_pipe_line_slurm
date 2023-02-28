@@ -448,7 +448,11 @@ def save_to_db(options):
         return False
     save_metadata_to_db(options)
     create_cell_table()
-    df = analyze_cells(options)
+    cell_df_paths = sorted(glob(os.path.join(options['out_name'], "spots_detailed_info_*.csv")))
+    if len(cell_df_paths):
+        df = pd.read_csv(cell_df_paths[-1])
+    else:
+        df = analyze_cells(options)
     df = df[["uuid", "time_point", "channel", "z_raw", "y_raw", "x_raw", "raw_coord_units",
              "z_raw_px", "y_raw_px", "x_raw_px", "is_cell", "type", "atlas_name", "atlas_resolution",
              "z_downsampled", "y_downsampled", "x_downsampled", "z_transformed", "y_transformed", "x_transformed",
@@ -460,6 +464,7 @@ def save_to_db(options):
     df.to_sql('cell', con, if_exists='append', index=False)
     con.commit()
     con.close()
+    import time;time.sleep(5)
     log.info('Created database records for detected cells')
     print("Done saving to db")
     return True
