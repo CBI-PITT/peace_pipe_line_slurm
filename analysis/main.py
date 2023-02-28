@@ -14,7 +14,7 @@ from pathlib import Path
 from imaris_ims_file_reader import ims
 
 from analysis import settings, local_settings
-from analysis.analyze_cells import analyze_cells_cellfinder, analyze_cells_imaris, save_to_db
+from analysis.analyze_cells import analyze_cells_cellfinder, analyze_cells_imaris, save_to_db, save_metadata_to_db
 from analysis.background_subtraction import remove_background_detections, segment_background_apoc
 from analysis.classify_cells import classify_cells, save_cells_imaris
 from analysis.classify_cells_fastai import classify_cells_fastai

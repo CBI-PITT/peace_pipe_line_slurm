@@ -374,3 +374,4 @@ def merge_chunks_nd_no_overlap(chunks, img_shape, chunk_shape):
 #     chunk_shape_plus_overlap = chunk_shape + 2 * overlap
 #     patches = patchify_fn(img, chunk_shape_plus_overlap, step=chunk_shape)
 #     return patches
+
