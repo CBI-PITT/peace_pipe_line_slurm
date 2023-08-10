@@ -1,5 +1,6 @@
 from collections import defaultdict
 from glob import glob
+from pathlib import Path
 import json
 import logging
 import os
@@ -375,3 +376,14 @@ def merge_chunks_nd_no_overlap(chunks, img_shape, chunk_shape):
 #     patches = patchify_fn(img, chunk_shape_plus_overlap, step=chunk_shape)
 #     return patches
 
+
+def get_out_name_from_ims_path(ims_file):
+    current_path = Path(ims_file)
+    presumable_out_folder = current_path.parent
+    for level in range(len(current_path.parents) - 1):
+        current_path = current_path.parent
+        presumable_out_folder = current_path / 'analysis'
+        if os.path.exists(str(presumable_out_folder)):
+            break
+    print(presumable_out_folder)
+    return str(presumable_out_folder)

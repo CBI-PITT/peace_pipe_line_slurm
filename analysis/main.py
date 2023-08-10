@@ -29,7 +29,7 @@ from analysis.visualize import visualize_cells
 from analysis.register_brains import register_brain, get_best_registration
 from analysis.remove_stripes import calculate_first_harmonic_from_stitching
 from analysis.utils import create_info_file, read_info_file, update_info_file, update_in_progress_files_json
-from analysis.utils import get_resolution_level_better_than_10um, find_appropriate_atlas
+from analysis.utils import get_resolution_level_better_than_10um, find_appropriate_atlas, get_out_name_from_ims_path
 
 
 log = logging.getLogger(__name__)
@@ -58,11 +58,11 @@ def do_analysis(ims_file_path, analysis_dir_this_brain, operations_to_perform):
         options = read_info_file(analysis_dir_this_brain)  # if processing has been attempted before
         if options['ims_file_path'] != ims_file_path:  # directory has been renamed
             options['ims_file_path'] = ims_file_path
-            options['out_name'] = os.path.join(os.path.dirname(ims_file_path), 'analysis', os.path.basename(ims_file_path))
+            options['out_name'] = os.path.join(get_out_name_from_ims_path(ims_file_path), os.path.basename(ims_file_path))
             update_info_file(analysis_dir_this_brain, options)
         if not os.path.exists(options['out_name']):
             print("Out folder doesn't exist")
-            options['out_name'] = os.path.join(os.path.dirname(ims_file_path), 'analysis', os.path.basename(ims_file_path))
+            options['out_name'] = os.path.join(get_out_name_from_ims_path(ims_file_path), os.path.basename(ims_file_path))
             print("New out folder", options['out_name'])
             if not os.path.exists(options['out_name']):
                 os.makedirs(options['out_name'])
