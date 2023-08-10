@@ -58,10 +58,21 @@ def do_analysis(ims_file_path, analysis_dir_this_brain, operations_to_perform):
         options = read_info_file(analysis_dir_this_brain)  # if processing has been attempted before
         if options['ims_file_path'] != ims_file_path:  # directory has been renamed
             options['ims_file_path'] = ims_file_path
+            options['out_name'] = os.path.join(os.path.dirname(ims_file_path), 'analysis', os.path.basename(ims_file_path))
+            update_info_file(analysis_dir_this_brain, options)
+        if not os.path.exists(options['out_name']):
+            print("Out folder doesn't exist")
+            options['out_name'] = os.path.join(os.path.dirname(ims_file_path), 'analysis', os.path.basename(ims_file_path))
+            print("New out folder", options['out_name'])
+            if not os.path.exists(options['out_name']):
+                os.makedirs(options['out_name'])
+            print("Updating json")
             update_info_file(analysis_dir_this_brain, options)
         # TODO: check and update processed json file
 
     settings_file = os.path.join(str(Path(options['out_name']).parent), 'settings.json')
+    if not os.path.exists(settings_file):
+        json.dump({}, open(settings_file, "w"))
     local_settings.update_settings(settings, settings_file)
 
     local_settings_dict = {}
