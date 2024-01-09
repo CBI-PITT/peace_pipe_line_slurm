@@ -3,7 +3,7 @@ def init():
     SETTINGS_FILE_PATH = ""
 
 
-JSON_FOLDER = '/CBI_Hive/CBI/Iana/json'
+JSON_FOLDER = '/h20/CBI/Iana/json'
 
 ALLEN_RESOLUTION = 10
 CELLFINDER_SOMA_DIAMETER = 10
@@ -14,9 +14,9 @@ DEEPBLINK_OUT_FOLDER_NAME = "output_deepblink"
 ATLAS_NAME_FORMAT = 'allen_mouse_{}um'
 SUFFIX_100UM_VOLUME = '_100_100_100.tif'
 DENOISE_FFT = True
-PROCESSED_IMS_LOCATION = '/CBI_Hive/CBI/Iana/processed_ims_files.json'
-IN_PROGRESS_IMS_LOCATION = '/CBI_Hive/CBI/Iana/in_progress_ims_files.json'
-ATLAS_REFERENCE_PATH_FORMAT = '/CBI_Hive/CBI/Iana/var/atlas_reference_{}um_wo_bckgnd.tif'  # atlas reference with background subtracted
+PROCESSED_IMS_LOCATION = '/h20/CBI/Iana/processed_ims_files.json'
+IN_PROGRESS_IMS_LOCATION = '/h20/CBI/Iana/in_progress_ims_files.json'
+ATLAS_REFERENCE_PATH_FORMAT = '/h20/CBI/Iana/var/atlas_reference_{}um_wo_bckgnd.tif'  # atlas reference with background subtracted
 DETECTED_SPOTS_FILE_NAME = 'all_detected_spots.npy'
 CLASSIFIED_CELLS_FILE_NAME = 'classified_cells.npy'
 DETECTED_SPOTS_IMARIS_FILE_NAME = 'all_detected_spots_imaris.npy'
@@ -25,14 +25,15 @@ TRANSFORMED_CELLS_FILE_NAME = 'classified_cells_transformed.npy'
 RESOLUTION_LEVEL_FOLDER_NAME = 'resolution_level_x'
 RANDOM_FOREST_MASK_FOLDER_NAME = 'bg_fg_mask_apoc'
 CELLS_DATAFRAME_NAME_PATTERN = 'spots_detailed_info_{}.csv'
-LOG_FILE_NAME_PATTERN = "/CBI_Hive/CBI/Iana/logs/analysis_pipeline_log_{}_{}.txt"
+LOG_FILE_NAME_PATTERN = "/h20/CBI/Iana/logs/analysis_pipeline_log_{}_{}.txt"
 TIMESTAMP_FORAMT = '%Y-%m-%d_%H:%M:%S'
 REGISTRATION_INFO_FILE_NAME = "registration_info.json"
 MODEL_PATH_FILE = "model_to_use"  # model for cellfinder ResNet-50 classification
-DEEPBLINK_MODEL_PATH = '/CBI_Hive/CBI/Iana/src/deepblink/models/deepblink_particle.h5'  # model for deepBlink cell detection
+DEEPBLINK_MODEL_PATH = '/h20/CBI/Iana/src/deepblink/models/deepblink_particle.h5'  # model for deepBlink cell detection
 DEEPBLINK_CHUNK_SIZE = (40, 1700, 3500)
-DB_TYPE = "mysql"
+DB_TYPE = "sqlite3"
 MYSQL_DB_NAME = "temp_cells"
+DB_LOCATION = ""
 
 DASK_ALLOWED_NODES = ['pollux', 'deneb']  # machines allowed to use dask
 
