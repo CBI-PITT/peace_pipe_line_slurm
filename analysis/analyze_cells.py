@@ -473,22 +473,18 @@ def save_to_db(options):
 def save_metadata_to_db(options):
     # TODO: create database if not exists? (for MySQL only)
     # create table metadata if not exists
-    from sqlalchemy.orm import DeclarativeBase
+    # from sqlalchemy.orm import DeclarativeBase
     from sqlalchemy import create_engine
 
-    class Base(DeclarativeBase):
-        pass
+    # class Base(DeclarativeBase):
+    #     pass
 
     location = get_db_location_sqlalchemy()
     engine = create_engine(location)
 
     if not metadata_table_exists():
-        print("creating metadata table")
         # Base.metadata.create_all(engine)
-        print("created metadata table")
         create_metadata_table()
     # insert new metadata record
     if not metadata_record_exists(options["ims_file_path"]):
-        print("Creating metadata record")
         create_metadata_record(options["ims_file_path"])
-        print("Created metadata record")

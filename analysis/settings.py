@@ -35,7 +35,7 @@ DB_TYPE = "sqlite3"
 MYSQL_DB_NAME = "temp_cells"
 DB_LOCATION = ""
 
-DASK_ALLOWED_NODES = ['pollux', 'deneb']  # machines allowed to use dask
+DASK_ALLOWED_NODES = ['pollux.cbiserver.pitt.edu.cbiserver.pitt.edu', 'deneb01', 'deneb02']  # machines allowed to use dask
 
 PREPROCESSING_METHOD_PREFIX_MAP = {
     'stretch_contrast': 'contrast_stretched',
@@ -46,6 +46,7 @@ PREPROCESSING_METHOD_PREFIX_MAP = {
     'fft_2d_notch_filter': 'notch_filtered'
 }
 PREPROCESSING_METHODS = [
+    ['stretch_contrast'],
     ['fft_2d_notch_filter'],
     ['fft_2d_notch_filter', 'stretch_contrast'],
     ['fft_2d_notch_filter', 'stretch_contrast', 'subtract_background_iterative']

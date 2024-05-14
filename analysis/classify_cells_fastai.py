@@ -19,13 +19,7 @@ log = logging.getLogger(__name__)
 
 def classify_cells_fastai(options):
     """
-    Run cell classification via cellfinder.
-
-    Looks for model_to_use.txt file in the root of analysis directory.
-    The model_to_use.txt file contains path to the model.h5 file, relevant for this experiment.
-    Model should be applicable for all brains in the experiment.
-    Models will be different between experiments/projects.
-    If no model path has been found, default pretrained NN (provided by brainglobe) is used.
+    Run cell classification via fastai.
 
     :param options: dict
     :return: None
@@ -295,12 +289,12 @@ def classify_cells_fastai(options):
     df_inference_complete = sliding_window(filenames, points_df, cube_shape2)
 
     print("Shape of df without leading and trailing z layers", df_inference_complete.shape)
-    df_inference_complete.to_csv(
-        os.path.join(
-            save_results_to,
-            f'predictions_{model_name}_{model_version}_test_no_beginning_no_end_z.csv'
-        )
-    )
+    # df_inference_complete.to_csv(
+    #     os.path.join(
+    #         save_results_to,
+    #         f'predictions_{model_name}_{model_version}_test_no_beginning_no_end_z.csv'
+    #     )
+    # )
     df_inference_complete = pd.concat([df_low_z, df_inference_complete, df_high_z], ignore_index=True)
     print("Final predictions df", df_inference_complete.shape)
     print("Saving outputs")

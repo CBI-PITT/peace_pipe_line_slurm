@@ -240,6 +240,8 @@ def remove_background_detections(options):
     """
     Remove false positive cell detections in the background.
 
+    Runs on the classification results (TODO: run before classification, to save time)
+
     :param options:
     :return:
     """
@@ -248,11 +250,13 @@ def remove_background_detections(options):
         settings.RESOLUTION_LEVEL_FOLDER_NAME,
         settings.CELLFINDER_OUT_FOLDER_NAME
     )
-    path_to_classification_df = os.path.join(
-        cellfinder_output_folder,
-        'points',
-        f'predictions_{settings.PYTORCH_MODEL_NAME}_{settings.PYTORCH_MODEL_VERSION}.csv'
-    )
+    path_to_classification_df = glob(
+        os.path.join(
+            cellfinder_output_folder,
+            'points',
+            f'predictions_*_*.csv'
+        )
+    )[-1]
     df = pd.read_csv(path_to_classification_df)
     combined_filtered_cells_df = []
     combined_filtered_non_cells_df = []

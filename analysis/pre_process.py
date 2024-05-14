@@ -51,21 +51,21 @@ total: 7 folders
 def pre_process_brain_faster(parent_folder, channel=0, use_dask=False):
     method_sequences = settings.PREPROCESSING_METHODS  # Ex: [ ['fft_2d_notch_filter'], ['fft_2d_notch_filter', 'stretch_contrast'], ['fft_2d_notch_filter', 'stretch_contrast', 'subtract_background']]
     dir_prefixes = []
-    finished_methods = []
+    # finished_methods = []
     for method_sequence in method_sequences:
         previous_method_prefixes = []
         for ind, method in enumerate(method_sequence):
             prefix = f'channel_{channel}{"_" if ind > 0 else ""}{"_".join(previous_method_prefixes)}'
             folder = os.path.join(parent_folder, prefix)
             method_prefix = settings.PREPROCESSING_METHOD_PREFIX_MAP[method]
-            if method not in finished_methods:
-                if use_dask:
-                    apply_method_parallel(method, folder)
-                else:
-                    apply_method(method, folder)
-                finished_methods.append(method)
+            # if method not in finished_methods:
+            if use_dask:
+                apply_method_parallel(method, folder)
+            else:
+                apply_method(method, folder)
+            # finished_methods.append(method)
             previous_method_prefixes.append(method_prefix)
-            dir_prefixes.append(prefix)
+            dir_prefixes.append(prefix + "_" + method_prefix)
 
     dir_prefixes.append(f'channel_{channel}{"_" if ind > 0 else ""}{"_".join(previous_method_prefixes)}')  # loop variables should still be there after the loop finished
     return dir_prefixes
