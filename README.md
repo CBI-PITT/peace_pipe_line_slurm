@@ -6,12 +6,14 @@ includes:<br/>
 Requires a JSON of the following format:<br/>
 {<br/>
     &nbsp;&nbsp;&nbsp;&nbsp; "input": "/path/to/file.ims",<br/>
-    &nbsp;&nbsp;&nbsp;&nbsp; "output":"/path/to/output_folder/",<br/>
-    &nbsp;&nbsp;&nbsp;&nbsp; "operation":"deepblink",<br/>
-    &nbsp;&nbsp;&nbsp;&nbsp; "extras": {"signal_channel":1}<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "output": "/path/to/output_folder/",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "operation": "deepblink",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "extras": {"signal_channel": 1, "resolution_level": 1}<br/>
 }
 
 Requires a deepblink environment with tensorflow (GPU):<br/>
+
+
 $ mamba create -y -n deepblink python=3.8<br/>
 $ conda activate deepblink<br/>
 $ mamba install numpy=1.20.3<br/>
