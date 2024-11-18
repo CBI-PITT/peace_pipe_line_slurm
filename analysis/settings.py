@@ -49,7 +49,7 @@ PREPROCESSING_METHODS = [
     ['stretch_contrast'],
     ['fft_2d_notch_filter'],
     ['fft_2d_notch_filter', 'stretch_contrast'],
-    ['fft_2d_notch_filter', 'stretch_contrast', 'subtract_background_iterative']
+    # ['fft_2d_notch_filter', 'stretch_contrast', 'subtract_background_iterative']
 ]
 
 # Example actions:
