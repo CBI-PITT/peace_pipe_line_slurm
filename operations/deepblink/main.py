@@ -12,7 +12,7 @@ CHUNK_SIZE = (40, 1700, 3500)
 
 class deepblink:
     """
-    Deep learning based pot detection.
+    Deep learning based spot detection.
 
     PEACE JSON example: (name should start with 'SLURM_settings_'
     {
@@ -23,6 +23,9 @@ class deepblink:
             "signal_channel": 1
         }
     }
+    defaults:
+    signal_channel = 0
+    resolution_level = 0
     """
     def __init__(self, input, output, **kwargs):
         self.input = input
