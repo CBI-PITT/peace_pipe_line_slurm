@@ -23,6 +23,19 @@ $ mamba install tensorflow=2.8.2=gpu_py38h75b8afa_0<br/>
 $ pip install deepblink<br/>
 $ pip install chardet
 
+- brainreg
+
+Requires a JSON of the following format:<br/>
+{<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "input": "/path/to/file.ims",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "output": "/path/to/output_folder/",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "operation": "brainreg",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "extras": {"background_channel": 0, "atlas": "allen_mouse_25um", "orientation": "sal", "brain_geometry": "full"}<br/>
+}
+
+Requires a brainreg environment
+
+
 
 # usage
 
