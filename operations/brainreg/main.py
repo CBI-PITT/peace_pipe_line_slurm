@@ -18,7 +18,7 @@ class brainreg:
         "output": "/h20/Public/cakir-i/4CL16/analysis/chow1_mag8x_montage",
         "operation": "brainreg",
         "extras": {
-            "background_channel": 1,
+            "background_channel": 0,
             "atlas": "allen_mouse_25um",
             "orientation": "sal",
             "brain_geometry": "full"
@@ -26,9 +26,10 @@ class brainreg:
     }
     """
     def __init__(self, input, output, **kwargs):
+        print("kwargs", kwargs)
         self.input = input
         self.output = output
-        self.background_channel = kwargs.get('background_channel', 0)
+        self.background_channel = int(kwargs.get('background_channel', 0))
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', "sal")
         self.brain_geometry = kwargs.get('brain_geometry', "full")
@@ -98,14 +99,14 @@ class brainreg:
             f.write('\n')
 
         #### run it on compute (cpu) partition
-        command = ['sbatch', f'--array=0-{z_layers}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
+        command = ['sbatch', f'--array=0-{z_layers-1}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
         subprocess.run(command)
 
     def run_registration(self):
         path_to_task = os.path.join(self.jobs_folder, f"register_rl{self.resolution_level}_c{self.background_channel}_to_{self.atlas}.sh")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO: create separate env for brainreg
+            f.write("source /h20/home/lab/miniconda3/bin/activate brainreg")  # TODO: create separate env for brainreg
             f.write('\n')
             f.write(f'brainreg {self.stack_to_register} {self.registration_folder}')
             f.write(f' -v {str(self.resolution[0])} {str(self.resolution[1])} {str(self.resolution[2])}')

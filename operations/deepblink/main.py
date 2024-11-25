@@ -20,7 +20,8 @@ class deepblink:
         "output": "/h20/Public/cakir-i/4CL16/analysis/chow1_mag8x_montage",
         "operation": "deepblink",
         "extras": {
-            "signal_channel": 1
+            "signal_channel": 0,
+            "resolution_level": 0
         }
     }
     defaults:
@@ -30,8 +31,8 @@ class deepblink:
     def __init__(self, input, output, **kwargs):
         self.input = input
         self.output = output
-        self.signal_channel = kwargs.get('signal_channel', 0)
-        self.resolution_level = kwargs.get('resolution_level', 0)
+        self.signal_channel = int(kwargs.get('signal_channel', 0))
+        self.resolution_level = int(kwargs.get('resolution_level', 0))
         self.chunks_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "deepblink_chunks")
         self.jobs_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "slurm_jobs")
         self.detection_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "detection")
