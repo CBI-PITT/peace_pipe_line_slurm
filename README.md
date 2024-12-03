@@ -1,7 +1,7 @@
 # brain analysis toolkit for SLURM
 
 includes:<br/>
-- deepblink
+- **deepblink**
 
 Requires a JSON of the following format:<br/>
 {<br/>
@@ -23,7 +23,7 @@ $ mamba install tensorflow=2.8.2=gpu_py38h75b8afa_0<br/>
 $ pip install deepblink<br/>
 $ pip install chardet
 
-- brainreg
+- **brainreg**
 
 Requires a JSON of the following format:<br/>
 {<br/>
@@ -41,7 +41,7 @@ $ conda activate brainreg<br/>
 $ pip install brainreg==0.4.0<br/>
 $ pip install numpy==1.22.4<br/>
 
-- cellfinder
+- **cellfinder**
 
 Requires a JSON of the following format:<br/>
 {<br/>
@@ -62,6 +62,24 @@ $ pip install bg_space<br/>
 $ pip install brainreg==0.4.0<br/>
 $ pip install --upgrade "importlib_metadata<8.0"
 
+- **ants**
+
+Requires a JSON of the following format:<br/>
+{<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "input": "/path/to/file.ims",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "output": "/path/to/output_folder/",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "operation": "ants",<br/>
+    &nbsp;&nbsp;&nbsp;&nbsp; "extras": {"background_channel": 0, "atlas": "allen_mouse_25um", "orientation": "sal"}<br/>
+}
+
+Requires an ants environment:<br/>
+
+$ mamba create -y -n ants python=3.9<br/>
+$ conda activate ants<br/>
+$ pip install antspyx<br/>
+$ pip install bg_atlasapi<br/>
+$ pip install bg_space<br/>
+$ pip install scikit-image
 
 
 # usage
