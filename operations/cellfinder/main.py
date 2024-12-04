@@ -5,8 +5,10 @@ from glob import glob
 
 from imaris_ims_file_reader import ims
 
+from ..base import ImageOperation
 
-class cellfinder:
+
+class cellfinder(ImageOperation):
     """
     Thresholding-based cell detection.
 
@@ -22,9 +24,7 @@ class cellfinder:
     }
     """
     def __init__(self, input, output, **kwargs):
-        print("kwargs", kwargs)
-        self.input = input
-        self.output = output
+        super().__init__(input, output, **kwargs)
         self.signal_channel = int(kwargs.get('signal_channel', 0))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
 

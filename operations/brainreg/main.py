@@ -7,8 +7,10 @@ import numpy as np
 from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 from imaris_ims_file_reader import ims
 
+from ..base import ImageOperation
 
-class brainreg:
+
+class brainreg(ImageOperation):
     """
     Affine and nonlinear brain registration.
 
@@ -26,9 +28,7 @@ class brainreg:
     }
     """
     def __init__(self, input, output, **kwargs):
-        print("kwargs", kwargs)
-        self.input = input
-        self.output = output
+        super().__init__(input, output, **kwargs)
         self.background_channel = int(kwargs.get('background_channel', 0))
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', "sal")
@@ -48,6 +48,7 @@ class brainreg:
         print("Input", self.input)
         print("Output", self.output)
         print("Channel", self.background_channel)
+        print("Atlas", self.atlas)
         self.calculate_resolution_level()    # calculate resolution level based on atlas
         self.extract_tiff_series()    # extract tiff series in SLURM
         z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.background_channel, 'shape')][-3]
@@ -106,7 +107,7 @@ class brainreg:
         path_to_task = os.path.join(self.jobs_folder, f"register_rl{self.resolution_level}_c{self.background_channel}_to_{self.atlas}.sh")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate brainreg")  # TODO: create separate env for brainreg
+            f.write("source /h20/home/lab/miniconda3/bin/activate brainreg")
             f.write('\n')
             f.write(f'brainreg {self.stack_to_register} {self.registration_folder}')
             f.write(f' -v {str(self.resolution[0])} {str(self.resolution[1])} {str(self.resolution[2])}')
