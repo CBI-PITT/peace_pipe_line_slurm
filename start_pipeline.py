@@ -1,3 +1,4 @@
+import importlib
 import json
 import os
 import sys
@@ -9,48 +10,35 @@ from pathlib import Path
 from analysis import settings
 from analysis.main import do_analysis
 from operations import *
+from operations.base import ImageOperation
 
-
-NODE_NAME = os.uname().nodename
 
 json_settings = {}
 
 
-def start_pipeline(settings_file_path):
-    print("Starting pipeline")
+def load_plugins(plugin_folder):
+    operations = {}
+    for plugin_name in os.listdir(plugin_folder):
+        plugin_path = os.path.join(plugin_folder, plugin_name)
+        main_file = os.path.join(plugin_path, "main.py")
 
-    with open(settings_file_path, 'r') as f:
-        settings_str = f.read()
-        try:
-            json_settings = json.loads(settings_str)
-        except:
-            log.warning("Unable to parse settings json")
+        if os.path.isdir(plugin_path) and os.path.isfile(main_file):
+            # Dynamically load the main.py file
+            spec = importlib.util.spec_from_file_location(f"{plugin_name}.main", main_file)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
 
-    ROOT_DIR = json_settings.get('root_dir')
-    IMS_FILE = json_settings.get('ims_file')
-    if not ROOT_DIR and not IMS_FILE:
-        raise RuntimeError("Root dir or imaris file required")
-    elif not ROOT_DIR:
-        ROOT_DIR = str(Path(IMS_FILE).parent)
-
-    # SCAN = json_settings.get('scan', False)
-
-    OUTPUT_FOLDER = json_settings.get('output_folder', os.path.join(ROOT_DIR, 'analysis'))
-    if not os.path.exists(OUTPUT_FOLDER):
-        os.makedirs(OUTPUT_FOLDER)
-
-    ACTIONS = json_settings.get('actions', ['register_brain'])
-
-    # PRE_PROCESS = json_settings.get('pre_process', False)
-    # PRE_PROCESSING_METHODS = json_settings.get('pre_processing_methods', [])
-    # USE_DASK = json_settings.get('use_dask', False)
+            # Find the class in the module that subclasses ImageOperation
+            for attr in dir(module):
+                obj = getattr(module, attr)
+                if isinstance(obj, type) and issubclass(obj, ImageOperation) and obj is not ImageOperation:
+                    operations[obj.__name__] = obj
+    return operations
 
 
-    analysis_dir_this_brain = os.path.join(OUTPUT_FOLDER, os.path.basename(IMS_FILE))
-    if not os.path.exists(analysis_dir_this_brain):
-        os.makedirs(analysis_dir_this_brain)
-    print("Actions before local settings:", ACTIONS)
-    do_analysis(IMS_FILE, analysis_dir_this_brain, ACTIONS)
+plugin_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins")
+plugins = load_plugins(plugin_folder)
+print("plugins", plugins)
 
 
 def start_pipeline_slurm(settings_file_path):
@@ -74,7 +62,11 @@ def start_pipeline_slurm(settings_file_path):
     if type(EXTRAS) != dict:
         log.exception("Field 'extras' needs to be a mapping/dictionary")
         return
-    operation_class = getattr(sys.modules[__name__], OPERATION)
+    try:
+        operation_class = getattr(sys.modules[__name__], OPERATION)
+    except AttributeError:
+        print(f"Attempting to load plugin for operation {OPERATION}")
+        operation_class = plugins[OPERATION]
     operation = operation_class(INPUT, OUTPUT, **EXTRAS)
     operation.run()
 

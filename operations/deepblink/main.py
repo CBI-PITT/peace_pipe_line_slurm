@@ -6,11 +6,13 @@ import numpy as np
 import dask
 import dask.array as da
 
+from ..base import ImageOperation
+
 
 CHUNK_SIZE = (40, 1700, 3500)
 
 
-class deepblink:
+class deepblink(ImageOperation):
     """
     Deep learning based spot detection.
 
@@ -29,8 +31,7 @@ class deepblink:
     resolution_level = 0
     """
     def __init__(self, input, output, **kwargs):
-        self.input = input
-        self.output = output
+        super().__init__(input, output, **kwargs)
         self.signal_channel = int(kwargs.get('signal_channel', 0))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
         self.chunks_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "deepblink_chunks")
@@ -51,6 +52,7 @@ class deepblink:
         print("Input", self.input)
         print("Output", self.output)
         print("Channel", self.signal_channel)
+        print("Resolution level", self.resolution_level)
         number_of_chunks = self.get_chunking()
         self.submit_detection_cpu_slurm_array(number_of_chunks)
 
