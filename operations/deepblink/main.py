@@ -1,5 +1,7 @@
+import json
 import os
 import subprocess
+from pathlib import Path
 
 from imaris_ims_file_reader import ims
 import numpy as np
@@ -7,6 +9,7 @@ import dask
 import dask.array as da
 
 from ..base import ImageOperation
+from analysis import settings
 
 
 CHUNK_SIZE = (40, 1700, 3500)
@@ -18,26 +21,21 @@ class deepblink(ImageOperation):
 
     PEACE JSON example: (name should start with 'SLURM_settings_'
     {
-        "input": "/h20/Public/cakir-i/4CL16/chow1_mag8x_montage.ims",
+        "input": "/h20/Public/cakir-i/4CL16/analysis/chow1_mag8x_montage/resolution_level_0/channel_1",
         "output": "/h20/Public/cakir-i/4CL16/analysis/chow1_mag8x_montage",
         "operation": "deepblink",
-        "extras": {
-            "signal_channel": 0,
-            "resolution_level": 0
-        }
     }
-    defaults:
-    signal_channel = 0
-    resolution_level = 0
     """
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
-        self.signal_channel = int(kwargs.get('signal_channel', 0))
-        self.resolution_level = int(kwargs.get('resolution_level', 0))
-        self.chunks_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "deepblink_chunks")
-        self.jobs_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "slurm_jobs")
-        self.detection_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "detection")
-        self.napari_folder = os.path.join(self.output, f"resolution_level_{self.resolution_level}", "detection_napari")
+        self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.signal_channel = int(self.metadata['channel'])
+        self.resolution_level = int(self.metadata['resolution_level'])
+        self.output_operation_folder = os.path.join(self.output, 'deepblink')
+        self.chunks_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "deepblink_chunks")
+        self.jobs_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "slurm_jobs")
+        self.detection_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "detection")
+        self.napari_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "detection_napari")
         if not os.path.exists(self.chunks_folder):
             os.makedirs(self.chunks_folder)
         if not os.path.exists(self.jobs_folder):
@@ -54,14 +52,11 @@ class deepblink(ImageOperation):
         print("Channel", self.signal_channel)
         print("Resolution level", self.resolution_level)
         number_of_chunks = self.get_chunking()
+        print("number of chunks", number_of_chunks)
         self.submit_detection_cpu_slurm_array(number_of_chunks)
 
     def get_chunking(self):
-        ims_file = ims(self.input)
-        tiff_stack_shape = list(ims_file.metaData[self.resolution_level, 0, self.signal_channel, 'shape'][-3:])
-        resolution = ims_file.metaData[self.resolution_level, 0, self.signal_channel, 'resolution']
-        print("Shape", tiff_stack_shape)
-        print("Resolution", resolution)
+        tiff_stack_shape = self.metadata['shape']
         ratios = (np.array(tiff_stack_shape) / np.array(CHUNK_SIZE)).astype('int') + 1
         patchify_chunks_shape = (*list(ratios), *CHUNK_SIZE)
         print("patchify_chunks_shape", patchify_chunks_shape)
@@ -112,7 +107,12 @@ class deepblink(ImageOperation):
             f.write('#!/bin/bash\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script} {self.input} {self.output} {self.resolution_level} {self.signal_channel} $SLURM_ARRAY_TASK_ID')
+            f.write(f'python {slurm_script} ')
+            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(' ')
+            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(' ')
+            f.write(f'{self.resolution_level} {self.signal_channel} $SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
         # run it on compute (cpu) partition
