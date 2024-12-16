@@ -1,9 +1,14 @@
 """
+All PEACE operations work on folders with tif/tiff files.
+These folders are the common medium that all readers should convert data to,
+and all analysis plugins (operations) must take as an input.
+
 Roadmap:
 
 - ResNet classification
 - partially processed folders - skip what's already done.
     Create multiple job arrays for continuous ranges of processed files
+- instead of passing many command line arguments, pass the settings JSON file
 """
 
 

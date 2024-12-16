@@ -19,6 +19,9 @@ class deepblink(ImageOperation):
     """
     Deep learning based spot detection.
 
+    Works on a folder with tif/tiff files that represent a z-stack.
+    If this folder was obtained from Imaris, it extracts chunks directly from .ims file
+
     PEACE JSON example: (name should start with 'SLURM_settings_'
     {
         "input": "/h20/Public/cakir-i/4CL16/analysis/chow1_mag8x_montage/resolution_level_0/channel_1",
