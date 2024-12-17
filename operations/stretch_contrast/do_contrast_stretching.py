@@ -14,29 +14,29 @@ def stretch_contrast(image):
     return image
 
 
-IMS_FILE_PATH = sys.argv[1]
+INPUT_DIR = sys.argv[1]
 OUTPUT_DIR = sys.argv[2]
 resolution_level = sys.argv[3]
 channel = sys.argv[4]
 z = sys.argv[5]
 
-print("IMS_FILE_PATH", IMS_FILE_PATH)
+print("INPUT_DIR", INPUT_DIR)
 print("OUTPUT_DIR", OUTPUT_DIR)
 print("resolution_level", resolution_level)
 print("channel", channel)
 print("z", z)
 
 input_file = os.path.join(
-    OUTPUT_DIR,
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
+    INPUT_DIR,
+    # f'resolution_level_{resolution_level}',
+    # f'channel_{channel}',
     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
 )
 
 output_file = os.path.join(
     OUTPUT_DIR,
-    'stretch_contrast',
-    f"r{str(resolution_level)}_c{str(channel)}_contrast_stretched",
+    # 'stretch_contrast',
+    # f"r{str(resolution_level)}_c{str(channel)}_contrast_stretched",
     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
 )
 
