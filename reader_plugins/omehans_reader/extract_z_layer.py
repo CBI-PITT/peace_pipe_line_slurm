@@ -1,5 +1,8 @@
+# conda activate omehans-reader
 import os
 import sys
+
+print("COMPUTER", os.uname().nodename)
 
 import tifffile
 import zarr

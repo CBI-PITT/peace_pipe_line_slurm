@@ -11,6 +11,38 @@ from analysis import settings
 log = logging.getLogger(__name__)
 
 
+def _guess_orientation(volume_100um):
+    """
+    Determine which of brain orientations ('sal' or 'spr') is more likely.
+
+    Uses Normalized Mutual Information between the reoriented data stack
+    (downsampled to 100 um) and the 100 um atlas.
+    """
+    from bg_atlasapi.bg_atlas import BrainGlobeAtlas
+    import bg_space as bgs
+    atlas = BrainGlobeAtlas("allen_mouse_100um")
+
+    reorient_spr_asr = bgs.map_stack_to("spr", "asr", volume_100um)
+    resized_reorient_spr_asr = resize(
+        reorient_spr_asr,
+        (atlas.reference.shape[0], atlas.reference.shape[1], atlas.reference.shape[2]),
+        anti_aliasing=True
+    )
+    nmi_spr = metrics.normalized_mutual_information(resized_reorient_spr_asr, atlas.reference)
+    reorient_sal_asr = bgs.map_stack_to("sal", "asr", volume_100um)
+    resized_reorient_sal_asr = resize(
+        reorient_sal_asr,
+        (atlas.reference.shape[0], atlas.reference.shape[1], atlas.reference.shape[2]),
+        anti_aliasing=True
+    )
+    nmi_sal = metrics.normalized_mutual_information(resized_reorient_sal_asr, atlas.reference)
+    print(f"\tNMI for spr: {nmi_spr}\n\tNMI for sal: {nmi_sal}")
+    guessed_orientation = 'spr' if nmi_spr > nmi_sal else 'sal'
+    print(f"Guessed orientation is {guessed_orientation}")
+
+    return guessed_orientation
+
+
 def guess_orientation(ims_file, save_100um_volume=False, out_dir=None):
     """
     Determine which of brain orientations ('sal' or 'spr') is more likely.
@@ -56,12 +88,3 @@ def guess_orientation(ims_file, save_100um_volume=False, out_dir=None):
     guessed_orientation = 'spr' if nmi_spr > nmi_sal else 'sal'
     log.info(f"Guessed orientation for {ims_file.filePathComplete} is {guessed_orientation}")
     return guessed_orientation
-
-
-if __name__ == "__main__":
-    folder = "/CBI_Hive/Public/klimstra-w/2019 - 01CL73/"
-    ims_file_paths = glob.glob(folder + "*.ims")
-    print(f"Total ims files: {len(ims_file_paths)}")
-    for ims_file_path in ims_file_paths:
-        orientation = guess_orientation(ims_file_path)
-        print(os.path.basename(ims_file_path), orientation)
