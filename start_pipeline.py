@@ -192,8 +192,7 @@ while True:
             try:
                 start_pipeline_slurm(settings_file_path)
             except Exception as e:
-                os.rename(settings_file_path,os.path.join(json_folderR, 'err', os.path.basename(settings_file_path)))
-                print(f"ERROR: {e}")
+                os.rename(settings_file_path,os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
                 print(traceback.format_exc())
             else:
                 os.rename(settings_file_path, os.path.join(json_folder, 'done', os.path.basename(settings_file_path)))
