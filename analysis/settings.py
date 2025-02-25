@@ -3,7 +3,7 @@ def init():
     SETTINGS_FILE_PATH = ""
 
 
-JSON_FOLDER = '/h20/CBI/Iana/json'
+JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/world/JSON']
 
 ALLEN_RESOLUTION = 10
 CELLFINDER_SOMA_DIAMETER = 10
