@@ -15,7 +15,7 @@ cell_candidates_path = sys.argv[3]  # .csv
 model_path = sys.argv[4]  # pytorch
 
 metadata_path = os.path.join(input_dir, '.dataset_info.json')
-metadata = json.loads(open(metadata_path, 'r'))
+metadata = json.load(open(metadata_path, 'r'))
 model_name = os.path.basename(model_path)
 
 jobs_folder = os.path.join(output_dir, "slurm_jobs")
@@ -25,6 +25,11 @@ except:
     pass
 
 save_results_to = os.path.join(output_dir, 'points')
+try:
+    os.makedirs(save_results_to)
+except:
+    pass
+
 if os.path.exists(
     os.path.join(
         save_results_to,
@@ -81,7 +86,7 @@ with open(path_to_task, 'w') as f:
     f.write(' ')
     f.write(output_dir if ' ' not in output_dir else f'"{output_dir}"')
     f.write(' ')
-    f.write(','.join(cube_shape2))
+    f.write(','.join(list(map(str, cube_shape2))))
     f.write(' ')
     f.write(cell_candidates_path if ' ' not in cell_candidates_path else f'"{cell_candidates_path}"')
     f.write(' ')
@@ -92,8 +97,8 @@ with open(path_to_task, 'w') as f:
 
 df_inference_complete = []
 total_rows = 0
-z_center_min = box_size[0] // 2
-z_center_max = z_layers - box_size[0] + box_size[0] // 2
+z_center_min = cube_shape2[0] // 2
+z_center_max = z_layers - cube_shape2[0] + cube_shape2[0] // 2
 
 ## run on GPU partition
 command = ['sbatch', f'--array={z_center_min}-{z_center_max}', '-p', 'gpu', '--gres=gpu:1', '--mem=64Gb', '-n8', path_to_task]
@@ -101,10 +106,12 @@ subprocess.run(command)
 
 ## wait for all jobs to finish
 expected_dfs = len(list(range(z_center_min, z_center_max+1)))
+print("Expected DFs", expected_dfs)
 finished = len(glob(os.path.join(output_dir, 'partial_dfs', 'part_classification_df_z_*.csv')))
 while finished < expected_dfs:
     time.sleep(30)
     finished = len(glob(os.path.join(output_dir, 'partial_dfs', 'part_classification_df_z_*.csv')))
+    print("finished DFs", finished)
 
 for partial_df_path in sorted(glob(os.path.join(output_dir, 'partial_dfs', 'part_classification_df_z_*.csv'))):
     partial_df = pd.read_csv(partial_df_path)

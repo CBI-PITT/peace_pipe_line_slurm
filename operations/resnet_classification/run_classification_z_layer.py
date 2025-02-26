@@ -18,9 +18,18 @@ output_dir = sys.argv[2]
 box_size_str = sys.argv[3]
 df_path = sys.argv[4]
 model_path = sys.argv[5]
-z_center = sys.argv[6]
+z_center = int(sys.argv[6])
 
 box_size = list(map(int, box_size_str.split(',')))
+
+output_path = os.path.join(output_dir, "partial_dfs")
+try:
+    os.makedirs(output_path)
+except:
+    pass
+
+if os.path.exists(os.path.join(output_path, f'part_classification_df_z_{str(z_center).zfill(5)}.csv')):
+    sys.exit(0)
 
 
 def get_cube_slicing2(z, y, x):
@@ -41,8 +50,8 @@ def get_x(r):
     """
     Extract cubes as cellfinder does, with zoom
     """
-    slice_z, slice_y, slice_x = get_cube_slicing2(r.axis_0, r.axis_1, r.axis_2)
-    raw_cube = np.array(ims_file[resolution_level, 0, 0, slice_z, slice_y, slice_x])
+    slice_z, slice_y, slice_x = get_cube_slicing2(int(round(r['axis-0'])) - z_start, int(round(r['axis-1'])), int(round(r['axis-2'])))
+    raw_cube = img[slice_z, slice_y, slice_x]  # todo: img[:, slice_y, slice_x] ?
     zoomed_cube = zoom(raw_cube, [1, 2, 2], order=2)
     return zoomed_cube
 
@@ -89,7 +98,7 @@ def extract_boxes(img, partial_df, z_start):
         """
         Extract cubes as cellfinder does, with zoom
         """
-        slice_z, slice_y, slice_x = get_cube_slicing2(r['axis-0'] - z_start, r['axis-1'], r['axis-2'])  # todo: just 10 instead of r.axis_0 - z_start ?
+        slice_z, slice_y, slice_x = get_cube_slicing2(int(round(r['axis-0'])) - z_start, int(round(r['axis-1'])), int(round(r['axis-2'])))
         raw_cube = img[slice_z, slice_y, slice_x]  # todo: img[:, slice_y, slice_x] ?
         zoomed_cube = zoom(raw_cube, [1, 2, 2], order=2)
         return zoomed_cube
@@ -99,15 +108,11 @@ def extract_boxes(img, partial_df, z_start):
 
     return test_files
 
-output_path = os.path.join(output_dir, "partial_dfs")
-try:
-    os.makedirs(output_path)
-except:
-    pass
-
 metadata_path = os.path.join(input_dir, '.dataset_info.json')
-metadata = json.loads(open(metadata_path, 'r'))
+metadata = json.load(open(metadata_path, 'r'))
 df = pd.read_csv(df_path)
+df = df.round().astype(int)
+
 img_shape = metadata['shape']
 z_start = z_center - box_size[0] // 2
 z_end = z_start + box_size[0]
@@ -141,6 +146,9 @@ if len(boxes):
                        get_y=get_y,
                        splitter=RandomSplitter(valid_pct=0.1))
 
+    n_cubes = partial_df.shape[0]
+    df_inference = partial_df.copy()
+    df_inference['ann'] = ['unknown1'] * (n_cubes // 2) + ['unknown2'] * (n_cubes - n_cubes // 2)
     dls = dblock.dataloaders(df_inference)
 
     # create a learner
@@ -150,7 +158,7 @@ if len(boxes):
     learn.model[0][0] = nn.Conv2d(nChannels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
 
     # load model
-    learn.load(model_path)
+    learn.load(model_path.replace(".pth", ""))
 
     test_dl = learn.dls.test_dl(boxes)
     preds, _, decoded_values = learn.get_preds(dl=test_dl, with_decoded=True)
