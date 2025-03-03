@@ -41,13 +41,13 @@ class imaris_reader(ImageReader):
             f.write(json.dumps(metadata))
         # extract tiff series in SLURM
         self.extract_tiff_series()
-        # check extraction progress
-        z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
-        extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        while len(extracted_files) < z_layers:
-            extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-            print(f"Extracted files: {len(extracted_files)} of {z_layers}")
-            time.sleep(10)
+        # # check extraction progress
+        # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
+        # extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
+        # while len(extracted_files) < z_layers:
+        #     extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
+        #     print(f"Extracted files: {len(extracted_files)} of {z_layers}")
+        #     time.sleep(10)
 
     def extract_tiff_series(self):
         z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
@@ -56,6 +56,10 @@ class imaris_reader(ImageReader):
         slurm_script = os.path.join(os.path.dirname(main_script), "extract_imaris_z_layer.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.output}/slurm_jobs/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO create a separate env?
             f.write('\n')
             f.write(f'python {slurm_script}')

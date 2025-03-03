@@ -24,6 +24,7 @@ full_output_path = os.path.join(
 )
 if os.path.exists(full_output_path):
     print(f"File for z={z} already exists")
+    sys.exit(0)
 
 f = ims(IMS_FILE_PATH)
 plane = f[int(resolution_level), 0, int(channel), int(z), :, :]
