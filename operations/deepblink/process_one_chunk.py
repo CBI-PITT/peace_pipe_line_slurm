@@ -74,6 +74,10 @@ def write_detection_task_for_slurm(chunk_number, output_path):
     output_dir = os.path.join(OUTPUT_DIR, "detection")
     with open(output_path, 'w') as f:
         f.write('#!/bin/bash\n')
+        f.write('\n')
+        f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
+        f.write('\n')
+        f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate deepblink")
         f.write('\n')
         f.write(f'deepblink predict -m {DEEPBLINK_MODEL_PATH} -i')
