@@ -23,7 +23,7 @@ def extract_chunk_from_imaris_by_number(number):
     chunk_indices_path = os.path.join(CHUNKS_FOLDER, 'chunk_indices.npy')
     chunk_indices = np.load(chunk_indices_path, allow_pickle=True)
     slices = chunk_indices[number]
-    ims_file = ims(metadata['source'])
+    ims_file = ims(metadata['source'], ResolutionLevelLock=resolution_level)
     ims_file_dask = da.array(ims_file)
     tiffstack = ims_file_dask[0, signal_channel, :, :, :]
     chunk = tiffstack[tuple(slices)]
