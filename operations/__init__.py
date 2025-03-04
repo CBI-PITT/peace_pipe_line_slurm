@@ -7,3 +7,4 @@ from .ilastik import ilastik
 from .resnet_classification import resnet_classification
 from .cellpose import cellpose
 from .dbscan import dbscan
+from .unet_3d import unet_3d

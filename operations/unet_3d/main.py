@@ -1,0 +1,117 @@
+import json
+import os
+import subprocess
+import time
+from glob import glob
+
+import numpy as np
+
+from ..base import ImageOperation
+from analysis import settings
+
+
+CHUNK_SIZE = (40, 1700, 3500)
+
+
+class unet_3d(ImageOperation):
+    def __init__(self, input, output, **kwargs):
+        super().__init__(input, output, **kwargs)
+        self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.channel = int(self.metadata['channel'])
+        self.resolution_level = int(self.metadata['resolution_level'])
+        self.model = kwargs.get('model')  # TODO: add default model
+
+        self.output_operation_folder = os.path.join(self.output, 'unet_3d')
+        self.chunks_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.channel}", "chunks")
+        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        self.save_folder = os.path.join(
+            self.output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"model_{os.path.basename(self.model)}"
+        )
+        if not os.path.exists(self.chunks_folder):
+            os.makedirs(self.chunks_folder)
+        if not os.path.exists(self.jobs_folder):
+            os.makedirs(self.jobs_folder)
+        if not os.path.exists(self.save_folder):
+            os.makedirs(self.save_folder)
+
+    def run(self):
+        print("Running 3D UNet")
+        print("Input", self.input)
+        print("Output", self.output)
+        print("Channel", self.channel)
+        print("Resolution level", self.resolution_level)
+        number_of_chunks = self.get_chunking()
+        print("number of chunks", number_of_chunks)
+        self.submit_detection_cpu_slurm_array(number_of_chunks)
+
+    def get_chunking(self):
+        tiff_stack_shape = self.metadata['shape']
+        ratios = (np.array(tiff_stack_shape) / np.array(CHUNK_SIZE)).astype('int') + 1
+        patchify_chunks_shape = (*list(ratios), *CHUNK_SIZE)
+        print("patchify_chunks_shape", patchify_chunks_shape)
+        origin_coords = self.get_origin_coords(3, patchify_chunks_shape, CHUNK_SIZE)
+        chunk_indices = self.get_chunk_indices(origin_coords, CHUNK_SIZE)
+        print("Total chunks", len(chunk_indices))
+        np.save(os.path.join(self.chunks_folder, 'origin_coords.npy'), origin_coords)
+        np.save(os.path.join(self.chunks_folder, 'chunk_indices.npy'), chunk_indices)
+        return len(chunk_indices)
+
+    @staticmethod
+    def get_origin_coords(ndim, patchify_chunks_shape, chunk_size):
+        """
+        Get coordinates of each chunk origin.
+        """
+        coords_shape = list(patchify_chunks_shape[:ndim]) + [ndim]
+        coords = np.empty(coords_shape, dtype=np.uint16)
+        print(" coords shape", coords.shape)
+        for z in range(coords.shape[0]):
+            for y in range(coords.shape[1]):
+                for x in range(coords.shape[2]):
+                    coords[z, y, x, :] = np.array((
+                        z * chunk_size[0],
+                        y * chunk_size[1],
+                        x * chunk_size[2]
+                    ))
+        coords = np.reshape(coords, (np.prod(coords.shape[:ndim]), ndim))
+        print("final coords shape", coords.shape)
+        return coords
+
+    @staticmethod
+    def get_chunk_indices(origin_coords, chunk_size):
+        indices = []
+        for origin in list(origin_coords):
+            indices.append([
+                slice(origin[0], origin[0] + chunk_size[0], 1),
+                slice(origin[1], origin[1] + chunk_size[1], 1),
+                slice(origin[2], origin[2] + chunk_size[2], 1)
+            ])
+        return indices
+
+    def submit_detection_cpu_slurm_array(self, number_of_chunks):
+        # write slurm job
+        path_to_task = os.path.join(self.jobs_folder, f"cpu_array_all_chunks.sh")
+        main_script = os.path.abspath(__file__)
+        slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
+        with open(path_to_task, 'w') as f:
+            f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
+            f.write(f"source {str(settings.HOME)}/miniconda3/bin/activate peace")  # TODO more general path
+            f.write('\n')
+            f.write(f'python {slurm_script} ')
+            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(' ')
+            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(' ')
+            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model}')
+            f.write('\n')
+
+        # run it on compute (cpu) partition
+        command = ['sbatch', f'--array=0-{number_of_chunks}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
+        print("command", command)
+        subprocess.run(command)

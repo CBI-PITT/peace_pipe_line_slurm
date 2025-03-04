@@ -1,9 +1,17 @@
+import getpass
+from pathlib import Path
+
+
 def init():
     global SETTINGS_FILE_PATH
     SETTINGS_FILE_PATH = ""
 
 
 JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/world/JSON']
+
+USERNAME = getpass.getuser()
+# USERNAME = 'lab'  # user that runs the pipeline
+HOME = Path.home()
 
 ALLEN_RESOLUTION = 10
 CELLFINDER_SOMA_DIAMETER = 10
