@@ -38,6 +38,7 @@ class deepblink(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
+        self.user = kwargs.get('user', 'lab')
         self.output_operation_folder = os.path.join(self.output, 'deepblink')
         self.chunks_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "deepblink_chunks")
         self.jobs_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "slurm_jobs")
@@ -54,16 +55,12 @@ class deepblink(ImageOperation):
 
     def run(self):
         print("Running deepblink in chunks")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.signal_channel)
-        print("Resolution level", self.resolution_level)
         number_of_chunks = self.get_chunking()
         print("number of chunks", number_of_chunks)
         self.submit_detection_cpu_slurm_array(number_of_chunks)
         # wait for all GPU jobs to finish
         chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
-        while chunks_done < number_of_chunks:
+        while chunks_done < number_of_chunks:  # TODO: should be a separate task
             print(f"Chunks done: {chunks_done} of {number_of_chunks}")
             time.sleep(120)
             chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
@@ -121,6 +118,8 @@ class deepblink(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-deepblink-cpu")
+            f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
@@ -131,16 +130,23 @@ class deepblink(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.signal_channel} $SLURM_ARRAY_TASK_ID')
+            f.write(f'{self.resolution_level} {self.signal_channel} {self.user} $SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
         # run it on compute (cpu) partition
-        # command = ['sbatch', f'--array=11-20', '-p', 'compute', '--mem=32Gb', '-n12', '-o', '/h20/CBI/Iana/json/slurm_out', path_to_task]
-        command = ['sbatch', f'--array=0-{number_of_chunks}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
-        print("command", command)
+        command = [
+            'sbatch',
+            f'--array=0-{number_of_chunks}',
+            '-p', settings.SLURM_PARTITION_CPU,
+            '--mem=32Gb',
+            '-n12',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
+        # print("command", command)
         subprocess.run(command)
 
-    def merge_df(self):
+    def merge_df(self):  # TODO lunch as a separate process on a GPU node
         df_column_names = ['index', 'axis-0', 'axis-1', 'axis-2']
         df = pd.DataFrame(columns=df_column_names)
         csv_files = sorted(glob(os.path.join(self.napari_folder, 'napari*.csv')))

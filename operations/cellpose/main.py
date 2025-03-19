@@ -19,6 +19,7 @@ class cellpose(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
+        self.user = kwargs.get('user', 'lab')
         self.model = kwargs.get('model', 'general')
 
         self.output_operation_folder = os.path.join(self.output, 'cellpose')
@@ -38,13 +39,13 @@ class cellpose(ImageOperation):
             os.makedirs(self.save_folder)
 
     def run(self):
-        print("Running deepblink in chunks")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.channel)
-        print("Resolution level", self.resolution_level)
+        print("Running cellpose in chunks")
+        # print("Input", self.input)
+        # print("Output", self.output)
+        # print("Channel", self.channel)
+        # print("Resolution level", self.resolution_level)
         number_of_chunks = self.get_chunking()
-        print("number of chunks", number_of_chunks)
+        # print("number of chunks", number_of_chunks)
         self.submit_detection_cpu_slurm_array(number_of_chunks)
 
     def get_chunking(self):
@@ -97,6 +98,12 @@ class cellpose(ImageOperation):
         slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-cellpose-cpu")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
             f.write(f'python {slurm_script} ')
@@ -104,11 +111,17 @@ class cellpose(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model}')
+            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user}')
             f.write('\n')
 
         # run it on compute (cpu) partition
-        # command = ['sbatch', f'--array=11-20', '-p', 'compute', '--mem=32Gb', '-n12', '-o', '/h20/CBI/Iana/json/slurm_out', path_to_task]
-        command = ['sbatch', f'--array=0-{number_of_chunks}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
-        print("command", command)
+        command = [
+            'sbatch',
+            f'--array=0-{number_of_chunks}',
+            '-p', settings.SLURM_PARTITION_CPU,
+            '--mem=32Gb',
+            '-n12',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)

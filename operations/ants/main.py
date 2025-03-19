@@ -33,6 +33,7 @@ class ants(ImageOperation):
         super().__init__(input, output, **kwargs)
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.background_channel = int(self.metadata['channel'])
+        self.user = kwargs.get('user', 'lab')
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', "sal")
         self.resolution_level = int(self.metadata['resolution_level'])
@@ -46,8 +47,6 @@ class ants(ImageOperation):
             f"channel_{self.background_channel}",
             f"registration_{self.atlas}"
         )
-        # self.ims_file = ims(self.input)
-        # self.stack_to_register = os.path.join(self.output_operation_folder, f"stack_c{self.background_channel}_rescaled_to_{self.atlas}.tif")
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.registration_folder):
@@ -55,11 +54,9 @@ class ants(ImageOperation):
 
     def run(self):
         print("Running ants")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.background_channel)
-        # self.calculate_resolution_level()    # calculate resolution level based on atlas
-        # self.extract_atlas_resolution()    # extract multi-page tiff file from Imaris; downsample it to atlas resolution
+        # print("Input", self.input)
+        # print("Output", self.output)
+        # print("Channel", self.background_channel)
         self.run_registration()  # run ants in SLURM
 
     def calculate_resolution_level(self):
@@ -111,6 +108,12 @@ class ants(ImageOperation):
         slurm_script = os.path.join(os.path.dirname(main_script), "register_ants.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-ants")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate ants")
             f.write('\n')
             f.write(f'python {slurm_script} ')
@@ -123,5 +126,12 @@ class ants(ImageOperation):
 
         print("Starting registration...")
         #### run on compute (cpu) partition
-        command = ['sbatch', '-p', 'compute', '--mem=64Gb', '-n24', path_to_task]
+        command = [
+            'sbatch',
+            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            '--mem=64Gb',
+            '-n24',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)

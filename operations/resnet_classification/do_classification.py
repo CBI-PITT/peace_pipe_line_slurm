@@ -13,6 +13,7 @@ input_dir = sys.argv[1]
 output_dir = sys.argv[2]  # output/resnet_classification/resolution_level_<>/channel_<>/
 cell_candidates_path = sys.argv[3]  # .csv
 model_path = sys.argv[4]  # pytorch
+username = sys.argv[5]
 
 metadata_path = os.path.join(input_dir, '.dataset_info.json')
 metadata = json.load(open(metadata_path, 'r'))
@@ -78,6 +79,12 @@ main_script = os.path.abspath(__file__)
 slurm_script = os.path.join(os.path.dirname(main_script), "run_classification_z_layer.py")
 with open(path_to_task, 'w') as f:
     f.write('#!/bin/bash\n')
+    f.write('\n')
+    f.write(f"#SBATCH -J {username}-resnet-gpu")
+    f.write('\n')
+    f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
+    f.write('\n')
+    f.write('\n')
     f.write("source /h20/home/lab/miniconda3/bin/activate resnet_classification")
     f.write('\n')
     f.write(f'python {slurm_script}')
@@ -101,7 +108,16 @@ z_center_min = cube_shape2[0] // 2
 z_center_max = z_layers - cube_shape2[0] + cube_shape2[0] // 2
 
 ## run on GPU partition
-command = ['sbatch', f'--array={z_center_min}-{z_center_max}', '-p', 'gpu', '--gres=gpu:1', '--mem=64Gb', '-n8', path_to_task]
+command = [
+    'sbatch',
+    f'--array={z_center_min}-{z_center_max}',
+    '-p', 'gpu',
+    '--gres=gpu:1',
+    '--mem=64Gb',
+    '-n8',
+    '--nice=500',
+    path_to_task
+]
 subprocess.run(command)
 
 ## wait for all jobs to finish

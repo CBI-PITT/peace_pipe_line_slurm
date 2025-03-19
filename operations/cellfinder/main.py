@@ -27,7 +27,7 @@ class cellfinder(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
-
+        self.user = kwargs.get('user', 'lab')
         self.output_operation_folder = os.path.join(self.output, 'cellfinder')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
         self.detection_folder = os.path.join(
@@ -36,8 +36,6 @@ class cellfinder(ImageOperation):
             f"channel_{self.signal_channel}",
             f"cellfinder_output"
         )
-        # self.ims_file = ims(self.input)
-        # self.resolution = self.ims_file.metaData[(self.resolution_level, 0, self.signal_channel, 'resolution')][-3:]
         self.resolution = self.metadata['resolution']
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -46,18 +44,10 @@ class cellfinder(ImageOperation):
 
     def run(self):
         print("Running cellfinder")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.signal_channel)
-        # self.stack_to_detect = os.path.join(self.output_operation_folder, f'resolution_level_{self.resolution_level}', f'channel_{self.signal_channel}')
-        # self.extract_tiff_series()  # extract tiff series in SLURM
-        # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.signal_channel, 'shape')][-3]
-        # extracted_files = glob(os.path.join(self.output_operation_folder, f'resolution_level_{self.resolution_level}', f'channel_{self.signal_channel}', "*.tif"))
-        # while len(extracted_files) < z_layers:
-        #     extracted_files = glob(os.path.join(self.output_operation_folder, f'resolution_level_{self.resolution_level}', f'channel_{self.signal_channel}', "*.tif"))
-        #     print(f"Extracted files: {len(extracted_files)} of {z_layers}")
-        #     time.sleep(10)
-        self.run_detection()  # run brainreg in SLURM
+        # print("Input", self.input)
+        # print("Output", self.output)
+        # print("Channel", self.signal_channel)
+        self.run_detection()  # run cellfinder in SLURM
 
     def run_detection(self):
         path_to_task = os.path.join(self.jobs_folder, f"cellfinder_rl{self.resolution_level}_c{self.signal_channel}.sh")
@@ -65,6 +55,12 @@ class cellfinder(ImageOperation):
             f.write('#!/bin/bash\n')
             # f.write('ulimit -n 600000')
             # f.write('\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-cellfinder")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate cellfinder")
             f.write('\n')
             f.write('cellfinder -s ')
@@ -80,7 +76,13 @@ class cellfinder(ImageOperation):
 
         print("Starting cellfinder detection...")
         #### run on gpu partition
-        command = ['sbatch', '-p', 'gpu', '--gres=gpu:1', '--mem=64Gb', '-n8', path_to_task]
-        # command = ['sbatch', '-p', 'compute', '--mem=64Gb', '-n24', path_to_task]  # for CPU partition - does not work
+        command = [
+            'sbatch',
+            '-p', settings.SLURM_PARTITION_HIGH_RAM,
+            '--mem=64Gb',
+            '-n8',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)
 

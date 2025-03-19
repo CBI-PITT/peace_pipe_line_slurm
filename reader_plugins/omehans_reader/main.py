@@ -17,6 +17,7 @@ class omehans_reader(ImageReader):
         super().__init__(input, output, **kwargs)
         self.channel = int(kwargs.get('channel', 0))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
+        self.user = kwargs.get('user', 'lab')
 
         self.jobs_folder = os.path.join(self.output, "slurm_jobs")
         self.extracted_tiffs_folder = os.path.join(
@@ -41,13 +42,13 @@ class omehans_reader(ImageReader):
         self.extract_tiff_series()
         self.update_metadata()
         # check extraction progress
-        array_metadata = json.load(open(os.path.join(self.input, f"scale{self.resolution_level}", '.zarray'), 'r'))
-        z_layers = array_metadata['shape'][-3]
-        extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        while len(extracted_files) < z_layers:
-            extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-            print(f"Extracted files: {len(extracted_files)} of {z_layers}")
-            time.sleep(10)
+        # array_metadata = json.load(open(os.path.join(self.input, f"scale{self.resolution_level}", '.zarray'), 'r'))
+        # z_layers = array_metadata['shape'][-3]
+        # extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
+        # while len(extracted_files) < z_layers:
+        #     extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
+        #     print(f"Extracted files: {len(extracted_files)} of {z_layers}")
+        #     time.sleep(10)
 
     def extract_tiff_series(self):
         array_metadata = json.load(open(os.path.join(self.input, f"scale{self.resolution_level}", '.zarray'), 'r'))
@@ -57,6 +58,12 @@ class omehans_reader(ImageReader):
         slurm_script = os.path.join(os.path.dirname(main_script), "extract_z_layer.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-omehans-reader")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate omehans-reader")
             f.write('\n')
             f.write(f'python {slurm_script}')
@@ -73,7 +80,15 @@ class omehans_reader(ImageReader):
             f.write('\n')
 
         #### run it on compute (cpu) partition
-        command = ['sbatch', f'--array=0-{z_layers-1}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
+        command = [
+            'sbatch',
+            f'--array=0-{z_layers-1}',
+            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            '--mem=32Gb',
+            '-n12',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)
 
     def initialize_info_file(self):
@@ -108,6 +123,12 @@ class omehans_reader(ImageReader):
         slurm_script = os.path.join(os.path.dirname(main_script), "extract_volume_at_resolution.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-omehans-reader")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate omehans-reader")
             f.write('\n')
             f.write(f'python {slurm_script}')
@@ -119,7 +140,14 @@ class omehans_reader(ImageReader):
             f.write(str(self.channel))
             f.write('\n')
 
-        command = ['sbatch', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
+        command = [
+            'sbatch',
+            '-p', settings.SLURM_PARTITION_CPU,
+            '--mem=32Gb',
+            '-n12',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)
 
         while True:

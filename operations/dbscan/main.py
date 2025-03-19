@@ -15,6 +15,7 @@ class dbscan(ImageOperation):
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
 
+        self.user = kwargs.get('user', 'lab')
         self.points = kwargs["cell_candidates_path"]
         self.epsilon = int(kwargs.get("epsilon", 3))
         self.min_samples = int(kwargs.get("min_samples", 2))
@@ -33,9 +34,9 @@ class dbscan(ImageOperation):
 
     def run(self):
         print("Running DBSCAN")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Points", self.points)
+        # print("Input", self.input)
+        # print("Output", self.output)
+        # print("Points", self.points)
         self.run_dbscan()
 
     def run_dbscan(self):
@@ -44,6 +45,12 @@ class dbscan(ImageOperation):
         slurm_script = os.path.join(os.path.dirname(main_script), "do_dbscan.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-dbscan")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate dbscan")
             f.write('\n')
             f.write(f'python {slurm_script}')
@@ -58,5 +65,12 @@ class dbscan(ImageOperation):
             f.write('\n')
 
         #### run it on compute (cpu) partition
-        command = ['sbatch', '-p', 'gpu', '--mem=256Gb', '-n24', path_to_task]
+        command = [
+            'sbatch',
+            '-p', settings.SLURM_PARTITION_HIGH_RAM,
+            '--mem=256Gb',
+            '-n24',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)

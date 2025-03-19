@@ -15,6 +15,7 @@ class rembg(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
+        self.user = kwargs.get('user', 'lab')
 
         self.output_operation_folder = os.path.join(self.output, 'rembg')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
@@ -47,6 +48,12 @@ class rembg(ImageOperation):
         slurm_script = os.path.join(os.path.dirname(main_script), "do_rembg.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-rembg")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate rembg")
             f.write('\n')
             f.write(f'python {slurm_script}')
@@ -63,6 +70,15 @@ class rembg(ImageOperation):
             f.write('\n')
 
         #### run it on compute (cpu) partition
-        command = ['sbatch', f'--array=0-{z_layers-1}', '--export=OMP_NUM_THREADS=12', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
+        command = [
+            'sbatch',
+            f'--array=0-{z_layers-1}',
+            '--export=OMP_NUM_THREADS=12',
+            '-p', settings.SLURM_PARTITION_CPU,
+            '--mem=32Gb',
+            '-n12',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)
 

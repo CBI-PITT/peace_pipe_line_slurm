@@ -5,10 +5,7 @@ and all analysis plugins (operations) must take as an input.
 
 Roadmap:
 
-- ResNet classification
-- Cellpose
 - tiff series reader (just provenance)
-- file browser
 - description for each method
 - description for each field
 - partially processed folders - skip what's already done.

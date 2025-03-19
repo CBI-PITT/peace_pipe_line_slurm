@@ -19,6 +19,7 @@ class unet_3d(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
+        self.user = kwargs.get('user', 'lab')
         self.model = kwargs.get('model')  # TODO: add default model
 
         self.output_operation_folder = os.path.join(self.output, 'unet_3d')
@@ -98,6 +99,8 @@ class unet_3d(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-3d-unet-cpu")
+            f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
@@ -108,10 +111,18 @@ class unet_3d(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model}')
+            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user}')
             f.write('\n')
 
         # run it on compute (cpu) partition
-        command = ['sbatch', f'--array=0-{number_of_chunks}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
-        print("command", command)
+        command = [
+            'sbatch',
+            f'--array=0-{number_of_chunks}',
+            '-p', settings.SLURM_PARTITION_CPU,
+            '--mem=32Gb',
+            '-n12',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
+        # print("command", command)
         subprocess.run(command)

@@ -77,6 +77,8 @@ def write_detection_task_for_slurm(chunk_number, output_path):
     with open(output_path, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
+        f.write(f"#SBATCH -J {username}-3d-unet-gpu")
+        f.write('\n')
         f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
         f.write('\n')
         f.write('\n')
@@ -97,7 +99,15 @@ def write_detection_task_for_slurm(chunk_number, output_path):
 
 
 def submit_slurm_task_gpu(path_to_task):
-    command = ['sbatch', '-p', 'gpu', '--gres=gpu:1', '--mem=64Gb', '-n8', path_to_task]
+    command = [
+        'sbatch',
+        '-p', 'gpu',
+        '--gres=gpu:1',
+        '--mem=64Gb',
+        '-n8',
+        '--nice=500',
+        path_to_task
+    ]
     subprocess.run(command)
 
 
@@ -152,6 +162,7 @@ resolution_level = int(sys.argv[3])
 signal_channel = int(sys.argv[4])
 chunk_number = int(sys.argv[5])
 model = sys.argv[6]
+username = sys.argv[7]
 
 metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
 source = metadata['source']

@@ -34,6 +34,7 @@ class brainreg(ImageOperation):
         self.background_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.resolution = self.metadata['resolution']
+        self.user = kwargs.get('user', 'lab')
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', self.metadata['orientation'])
         self.brain_geometry = kwargs.get('brain_geometry', "full")
@@ -54,10 +55,10 @@ class brainreg(ImageOperation):
 
     def run(self):
         print("Running brainreg")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.background_channel)
-        print("Atlas", self.atlas)
+        # print("Input", self.input)
+        # print("Output", self.output)
+        # print("Channel", self.background_channel)
+        # print("Atlas", self.atlas)
         # self.calculate_resolution_level()    # calculate resolution level based on atlas
         # self.extract_tiff_series()    # extract tiff series in SLURM
         # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.background_channel, 'shape')][-3]
@@ -89,6 +90,12 @@ class brainreg(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"register_rl{self.resolution_level}_c{self.background_channel}_to_{self.atlas}.sh")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-brainreg")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate brainreg")
             f.write('\n')
             f.write('brainreg ')
@@ -101,6 +108,13 @@ class brainreg(ImageOperation):
 
         print("Starting registration...")
         #### run on compute (cpu) partition
-        command = ['sbatch', '-p', 'compute', '--mem=64Gb', '-n24', path_to_task]
+        command = [
+            'sbatch',
+            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            '--mem=64Gb',
+            '-n24',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)
 

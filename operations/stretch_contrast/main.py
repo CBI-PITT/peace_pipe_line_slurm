@@ -16,6 +16,7 @@ class stretch_contrast(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
+        self.user = kwargs.get('user', 'lab')
 
         self.output_operation_folder = os.path.join(self.output, 'stretch_contrast')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
@@ -34,10 +35,10 @@ class stretch_contrast(ImageOperation):
 
     def run(self):
         print("Running contrast stretching")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.channel)
-        print("Resolution level", self.resolution_level)
+        # print("Input", self.input)
+        # print("Output", self.output)
+        # print("Channel", self.channel)
+        # print("Resolution level", self.resolution_level)
         # self.extract_tiff_series()  # extract tiff series in SLURM
         # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
         # extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
@@ -54,6 +55,12 @@ class stretch_contrast(ImageOperation):
         slurm_script = os.path.join(os.path.dirname(main_script), "do_contrast_stretching.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-stretch-contrast")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
             f.write(f'python {slurm_script}')
@@ -70,5 +77,13 @@ class stretch_contrast(ImageOperation):
             f.write('\n')
 
         #### run it on compute (cpu) partition
-        command = ['sbatch', f'--array=0-{z_layers-1}', '-p', 'compute', '--mem=32Gb', '-n12', path_to_task]
+        command = [
+            'sbatch',
+            f'--array=0-{z_layers-1}',
+            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            '--mem=32Gb',
+            '-n12',
+            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            path_to_task
+        ]
         subprocess.run(command)

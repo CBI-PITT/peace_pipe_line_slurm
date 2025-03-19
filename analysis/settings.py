@@ -7,11 +7,16 @@ def init():
     SETTINGS_FILE_PATH = ""
 
 
-JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/world/JSON']
+JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/PEACE/JSON']
 
 USERNAME = getpass.getuser()
 # USERNAME = 'lab'  # user that runs the pipeline
 HOME = Path.home()
+
+SLURM_JOBS_NICE_LEVEL = 500
+SLURM_PARTITION_CPU = 'compute'
+SLURM_PARTITION_GPU = 'gpu'
+SLURM_PARTITION_HIGH_RAM = 'gpu'
 
 ALLEN_RESOLUTION = 10
 CELLFINDER_SOMA_DIAMETER = 10
