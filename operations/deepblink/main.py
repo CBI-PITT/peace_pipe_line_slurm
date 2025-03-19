@@ -1,22 +1,22 @@
 import json
 import os
-import re
+# import re
 import subprocess
-import time
-from glob import glob
-from pathlib import Path
+# import time
+# from glob import glob
+# from pathlib import Path
 
-from imaris_ims_file_reader import ims
-import numpy as np
-import pandas as pd
-import dask
-import dask.array as da
+# from imaris_ims_file_reader import ims
+# import numpy as np
+# import pandas as pd
+# import dask
+# import dask.array as da
 
 from ..base import ImageOperation
 from analysis import settings
 
 
-CHUNK_SIZE = (40, 1700, 3500)
+# CHUNK_SIZE = (40, 1700, 3500)
 
 
 class deepblink(ImageOperation):
@@ -55,70 +55,27 @@ class deepblink(ImageOperation):
 
     def run(self):
         print("Running deepblink in chunks")
-        number_of_chunks = self.get_chunking()
-        print("number of chunks", number_of_chunks)
-        self.submit_detection_cpu_slurm_array(number_of_chunks)
-        # wait for all GPU jobs to finish
-        chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
-        while chunks_done < number_of_chunks:  # TODO: should be a separate task
-            print(f"Chunks done: {chunks_done} of {number_of_chunks}")
-            time.sleep(120)
-            chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
-        # merge the dataframes with points for all chunks
-        self.merge_df()
+        self.run_all()
+        # number_of_chunks = self.get_chunking()
+        # print("number of chunks", number_of_chunks)
+        # self.submit_detection_cpu_slurm_array(number_of_chunks)
+        # # wait for all GPU jobs to finish
+        # chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
+        # while chunks_done < number_of_chunks:  # TODO: should be a separate task
+        #     print(f"Chunks done: {chunks_done} of {number_of_chunks}")
+        #     time.sleep(120)
+        #     chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
+        # # merge the dataframes with points for all chunks
+        # self.merge_df()
 
-    def get_chunking(self):
-        tiff_stack_shape = self.metadata['shape']
-        ratios = (np.array(tiff_stack_shape) / np.array(CHUNK_SIZE)).astype('int') + 1
-        patchify_chunks_shape = (*list(ratios), *CHUNK_SIZE)
-        print("patchify_chunks_shape", patchify_chunks_shape)
-        origin_coords = self.get_origin_coords(3, patchify_chunks_shape, CHUNK_SIZE)
-        chunk_indices = self.get_chunk_indices(origin_coords, CHUNK_SIZE)
-        print("Total chunks", len(chunk_indices))
-        np.save(os.path.join(self.chunks_folder, 'origin_coords.npy'), origin_coords)
-        np.save(os.path.join(self.chunks_folder, 'chunk_indices.npy'), chunk_indices)
-        return len(chunk_indices)
-
-    @staticmethod
-    def get_origin_coords(ndim, patchify_chunks_shape, chunk_size):
-        """
-        Get coordinates of each chunk origin.
-        """
-        coords_shape = list(patchify_chunks_shape[:ndim]) + [ndim]
-        coords = np.empty(coords_shape, dtype=np.uint16)
-        print(" coords shape", coords.shape)
-        for z in range(coords.shape[0]):
-            for y in range(coords.shape[1]):
-                for x in range(coords.shape[2]):
-                    coords[z, y, x, :] = np.array((
-                        z * chunk_size[0],
-                        y * chunk_size[1],
-                        x * chunk_size[2]
-                    ))
-        coords = np.reshape(coords, (np.prod(coords.shape[:ndim]), ndim))
-        print("final coords shape", coords.shape)
-        return coords
-
-    @staticmethod
-    def get_chunk_indices(origin_coords, chunk_size):
-        indices = []
-        for origin in list(origin_coords):
-            indices.append([
-                slice(origin[0], origin[0] + chunk_size[0], 1),
-                slice(origin[1], origin[1] + chunk_size[1], 1),
-                slice(origin[2], origin[2] + chunk_size[2], 1)
-            ])
-        return indices
-
-    def submit_detection_cpu_slurm_array(self, number_of_chunks):
-        # write slurm job
-        path_to_task = os.path.join(self.jobs_folder, f"cpu_array_all_chunks.sh")
+    def run_all(self):
+        path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
         main_script = os.path.abspath(__file__)
-        slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
+        slurm_script = os.path.join(os.path.dirname(main_script), "run_all_steps.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-deepblink-cpu")
+            f.write(f"#SBATCH -J {self.user}-deepblink-main")
             f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
@@ -130,46 +87,124 @@ class deepblink(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.signal_channel} {self.user} $SLURM_ARRAY_TASK_ID')
+            f.write(f'{self.resolution_level} {self.signal_channel} {self.user}')
             f.write('\n')
 
         # run it on compute (cpu) partition
         command = [
             'sbatch',
-            f'--array=0-{number_of_chunks}',
-            '-p', settings.SLURM_PARTITION_CPU,
-            '--mem=32Gb',
-            '-n12',
+            '-p', settings.SLURM_PARTITION_HIGH_RAM,
+            '--mem=128Gb',
+            '-n8',
             f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
             path_to_task
         ]
-        # print("command", command)
         subprocess.run(command)
 
-    def merge_df(self):  # TODO lunch as a separate process on a GPU node
-        df_column_names = ['index', 'axis-0', 'axis-1', 'axis-2']
-        df = pd.DataFrame(columns=df_column_names)
-        csv_files = sorted(glob(os.path.join(self.napari_folder, 'napari*.csv')))
-        print("CSV files", len(csv_files), csv_files[:3])
-        origin_coords = np.load(os.path.join(self.chunks_folder, 'origin_coords.npy'), allow_pickle=True)
-        for chunk_file in csv_files:
-            current_chunk = int(re.findall(r"\d+", os.path.basename(chunk_file))[-1])
-            print("Processing", current_chunk)
-            chunk_df = pd.read_csv(chunk_file)
-            if chunk_df.empty:
-                continue
-            chunk_df_corrected = pd.DataFrame()
-            z_values = chunk_df[['axis-0']].to_numpy()
-            y_values = chunk_df[['axis-1']].to_numpy()
-            x_values = chunk_df[['axis-2']].to_numpy()
-            z_values += origin_coords[current_chunk, 0]
-            y_values += origin_coords[current_chunk, 1]
-            x_values += origin_coords[current_chunk, 2]
-            chunk_df_corrected['index'] = list(range(chunk_df.shape[0]))
-            chunk_df_corrected['axis-0'] = z_values
-            chunk_df_corrected['axis-1'] = y_values
-            chunk_df_corrected['axis-2'] = x_values
-            df = pd.concat([df, chunk_df_corrected])
 
-        print("Saving df")
-        df.to_csv(os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", 'merged_df.csv'))
+    # def get_chunking(self):
+    #     tiff_stack_shape = self.metadata['shape']
+    #     ratios = (np.array(tiff_stack_shape) / np.array(CHUNK_SIZE)).astype('int') + 1
+    #     patchify_chunks_shape = (*list(ratios), *CHUNK_SIZE)
+    #     print("patchify_chunks_shape", patchify_chunks_shape)
+    #     origin_coords = self.get_origin_coords(3, patchify_chunks_shape, CHUNK_SIZE)
+    #     chunk_indices = self.get_chunk_indices(origin_coords, CHUNK_SIZE)
+    #     print("Total chunks", len(chunk_indices))
+    #     np.save(os.path.join(self.chunks_folder, 'origin_coords.npy'), origin_coords)
+    #     np.save(os.path.join(self.chunks_folder, 'chunk_indices.npy'), chunk_indices)
+    #     return len(chunk_indices)
+
+    # @staticmethod
+    # def get_origin_coords(ndim, patchify_chunks_shape, chunk_size):
+    #     """
+    #     Get coordinates of each chunk origin.
+    #     """
+    #     coords_shape = list(patchify_chunks_shape[:ndim]) + [ndim]
+    #     coords = np.empty(coords_shape, dtype=np.uint16)
+    #     print(" coords shape", coords.shape)
+    #     for z in range(coords.shape[0]):
+    #         for y in range(coords.shape[1]):
+    #             for x in range(coords.shape[2]):
+    #                 coords[z, y, x, :] = np.array((
+    #                     z * chunk_size[0],
+    #                     y * chunk_size[1],
+    #                     x * chunk_size[2]
+    #                 ))
+    #     coords = np.reshape(coords, (np.prod(coords.shape[:ndim]), ndim))
+    #     print("final coords shape", coords.shape)
+    #     return coords
+    #
+    # @staticmethod
+    # def get_chunk_indices(origin_coords, chunk_size):
+    #     indices = []
+    #     for origin in list(origin_coords):
+    #         indices.append([
+    #             slice(origin[0], origin[0] + chunk_size[0], 1),
+    #             slice(origin[1], origin[1] + chunk_size[1], 1),
+    #             slice(origin[2], origin[2] + chunk_size[2], 1)
+    #         ])
+    #     return indices
+
+    # def submit_detection_cpu_slurm_array(self, number_of_chunks):
+    #     # write slurm job
+    #     path_to_task = os.path.join(self.jobs_folder, f"cpu_array_all_chunks.sh")
+    #     main_script = os.path.abspath(__file__)
+    #     slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
+    #     with open(path_to_task, 'w') as f:
+    #         f.write('#!/bin/bash\n')
+    #         f.write('\n')
+    #         f.write(f"#SBATCH -J {self.user}-deepblink-cpu")
+    #         f.write('\n')
+    #         f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+    #         f.write('\n')
+    #         f.write('\n')
+    #         f.write("source /h20/home/lab/miniconda3/bin/activate peace")
+    #         f.write('\n')
+    #         f.write(f'python {slurm_script} ')
+    #         f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+    #         f.write(' ')
+    #         f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+    #         f.write(' ')
+    #         f.write(f'{self.resolution_level} {self.signal_channel} {self.user} $SLURM_ARRAY_TASK_ID')
+    #         f.write('\n')
+    #
+    #     # run it on compute (cpu) partition
+    #     command = [
+    #         'sbatch',
+    #         f'--array=0-{number_of_chunks}',
+    #         '-p', settings.SLURM_PARTITION_CPU,
+    #         '--mem=32Gb',
+    #         '-n12',
+    #         f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+    #         path_to_task
+    #     ]
+    #     # print("command", command)
+    #     subprocess.run(command)
+
+    # def merge_df(self):  # TODO lunch as a separate process on a GPU node
+    #     df_column_names = ['index', 'axis-0', 'axis-1', 'axis-2']
+    #     df = pd.DataFrame(columns=df_column_names)
+    #     csv_files = sorted(glob(os.path.join(self.napari_folder, 'napari*.csv')))
+    #     print("CSV files", len(csv_files), csv_files[:3])
+    #     origin_coords = np.load(os.path.join(self.chunks_folder, 'origin_coords.npy'), allow_pickle=True)
+    #     for chunk_file in csv_files:
+    #         current_chunk = int(re.findall(r"\d+", os.path.basename(chunk_file))[-1])
+    #         print("Processing", current_chunk)
+    #         chunk_df = pd.read_csv(chunk_file)
+    #         if chunk_df.empty:
+    #             continue
+    #         chunk_df_corrected = pd.DataFrame()
+    #         z_values = chunk_df[['axis-0']].to_numpy()
+    #         y_values = chunk_df[['axis-1']].to_numpy()
+    #         x_values = chunk_df[['axis-2']].to_numpy()
+    #         z_values += origin_coords[current_chunk, 0]
+    #         y_values += origin_coords[current_chunk, 1]
+    #         x_values += origin_coords[current_chunk, 2]
+    #         chunk_df_corrected['index'] = list(range(chunk_df.shape[0]))
+    #         chunk_df_corrected['axis-0'] = z_values
+    #         chunk_df_corrected['axis-1'] = y_values
+    #         chunk_df_corrected['axis-2'] = x_values
+    #         df = pd.concat([df, chunk_df_corrected])
+    #
+    #     print("Saving df")
+    #     df.to_csv(os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", 'merged_df.csv'))
