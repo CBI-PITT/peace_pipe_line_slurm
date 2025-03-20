@@ -11,6 +11,8 @@ def run_dbscan_on_df(df, eps, min_samples):
     points = df[["axis-0", "axis-1", "axis-2"]].to_numpy()
     print("Points shape", points.shape)
 
+    points = points[~np.any(np.isnan(points), axis=1)]
+
     # create a DBSCAN object
     dbscan = DBSCAN(eps=eps, min_samples=min_samples)
 
