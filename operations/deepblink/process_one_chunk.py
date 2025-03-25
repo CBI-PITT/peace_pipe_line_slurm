@@ -15,6 +15,7 @@ import tifffile
 DEEPBLINK_MODEL_PATH = '/h20/CBI/Iana/src/deepblink/models/deepblink_particle.h5'
 INFO_FILE_NAME = "dataset_info.json"
 
+
 def extract_chunk_from_imaris_by_number(number):
     print("Extracting chunks from the imaris file")
     chunk_file = os.path.join(CHUNKS_FOLDER, f"chunk_{str(number).zfill(5)}.tif")
@@ -155,6 +156,45 @@ def extract_chunk_by_number(number):
         extract_chunk_from_tiff_series_by_number(number)
 
 
+def run_dbscan_on_chunk(chunk_number):
+    path_to_task = os.path.join(jobs_folder, f"dbscan_{chunk_number}.sh")
+    main_script = os.path.abspath(__file__)
+    slurm_script = os.path.join(os.path.dirname(main_script), "dbscan_one_chunk.py")
+    input_file = os.path.join(napari_folder, f"napari_chunk_{str(chunk_number).zfill(5)}.csv")
+    output_dir = os.path.join(OUTPUT_DIR, "dbscan")
+    try:
+        os.makedirs(output_dir)
+    except:
+        pass
+
+    with open(path_to_task, 'w') as f:
+        f.write('#!/bin/bash\n')
+        f.write('\n')
+        f.write(f"#SBATCH -J {username}-deepblink-dbscan")
+        f.write('\n')
+        f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
+        f.write('\n')
+        f.write('\n')
+        f.write("source /h20/home/lab/miniconda3/bin/activate dbscan")
+        f.write('\n')
+        f.write(f'python {slurm_script} ')
+        f.write(input_file if ' ' not in input_file else f'"{input_file}"')
+        f.write(' ')
+        f.write(output_dir if ' ' not in output_dir else f'"{output_dir}"')
+        f.write('\n')
+
+    command = [
+        'sbatch',
+        '-p', 'compute,gpu',
+        '--mem=32Gb',
+        '-n8',
+        '--nice=500',
+        path_to_task
+    ]
+    # print("command", command)
+    subprocess.run(command)
+
+
 def extract_detect_deepblink_delete(number):
     def save_empty_napari_df():
         print(f"WARNING: saving empty napari DF for chunk # {number}")
@@ -163,25 +203,37 @@ def extract_detect_deepblink_delete(number):
         df.to_csv(napari_csv_file_path)
 
     print("Chunk number", number)
-    try:
-        extract_chunk_by_number(number)
-    except:  # if impossible to extract, create an empty napari-compatible DF
-        print(f"EXCEPTION: unable to extract chunk # {number}")
-        print(traceback.format_exc())
-        save_empty_napari_df()
-        return
-    print("extracted")
-    detect_cells_deepblink_one_chunk(number)
-    print("sent detection job")
-    delete_extracted_chunk_by_number(number)
-    print("Deleted")
-    try:
-        convert_one_csv_to_napari_format_by_number(number)
-    except:
-        print(f"EXCEPTION: unable to save to napari format chunk # {number}")
-        save_empty_napari_df()
-        return
-    print("Converted to napari")
+    chunk_file = os.path.join(CHUNKS_FOLDER, f"chunk_{str(number).zfill(5)}.tif")
+    if not os.path.exists(chunk_file):
+        try:
+            extract_chunk_by_number(number)
+        except:  # if impossible to extract, create an empty napari-compatible DF
+            print(f"EXCEPTION: unable to extract chunk # {number}")
+            print(traceback.format_exc())
+            save_empty_napari_df()
+            return
+        print("extracted")
+    detections_file_name = os.path.join(detection_folder, f"chunk_{str(number).zfill(5)}.csv")
+    if not os.path.exists(detections_file_name):
+        detect_cells_deepblink_one_chunk(number)
+        print("sent detection job")
+    else:
+        print(f"Skipping chunk {number}")
+
+    # delete_extracted_chunk_by_number(number)
+    # print("Deleted")
+    napari_file_name = os.path.join(napari_folder, f"napari_chunk_{str(number).zfill(5)}.csv")
+    if not os.path.exists(napari_file_name):
+        try:
+            convert_one_csv_to_napari_format_by_number(number)
+        except:
+            print(f"EXCEPTION: unable to save to napari format chunk # {number}")
+            save_empty_napari_df()
+            return
+        print("Converted to napari")
+    dbscan_file_name = os.path.join(dbscan_folder, f"dbscan_napari_chunk_{str(number).zfill(5)}.csv")
+    if with_dbscan and not os.path.exists(dbscan_file_name):
+        run_dbscan_on_chunk(number)
 
 
 INPUT_DIR = sys.argv[1]  # TODO: this can be read directly from the JSON file
@@ -189,7 +241,8 @@ OUTPUT_DIR = sys.argv[2]
 resolution_level = int(sys.argv[3])
 signal_channel = int(sys.argv[4])
 username = sys.argv[5]
-chunk_number = int(sys.argv[6])
+with_dbscan = int(sys.argv[6])
+chunk_number = int(sys.argv[7])
 
 metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
@@ -199,5 +252,6 @@ CHUNKS_FOLDER = os.path.join(OUTPUT_DIR, "deepblink_chunks")
 jobs_folder = os.path.join(OUTPUT_DIR, "slurm_jobs")
 detection_folder = os.path.join(OUTPUT_DIR, "detection")
 napari_folder = os.path.join(OUTPUT_DIR, "detection_napari")
+dbscan_folder = os.path.join(OUTPUT_DIR, "dbscan")
 
 extract_detect_deepblink_delete(int(chunk_number))

@@ -39,6 +39,7 @@ class deepblink(ImageOperation):
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
+        self.with_dbscan = kwargs.get('with_dbscan', False)
         self.output_operation_folder = os.path.join(self.output, 'deepblink')
         self.chunks_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "deepblink_chunks")
         self.jobs_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "slurm_jobs")
@@ -52,6 +53,9 @@ class deepblink(ImageOperation):
             os.makedirs(self.detection_folder)
         if not os.path.exists(self.napari_folder):
             os.makedirs(self.napari_folder)
+        self.dbscan_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "dbscan")
+        if self.with_dbscan and not os.path.exists(self.dbscan_folder):
+            os.makedirs(self.dbscan_folder)
 
     def run(self):
         print("Running deepblink in chunks")
@@ -87,7 +91,7 @@ class deepblink(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.signal_channel} {self.user}')
+            f.write(f'{self.resolution_level} {self.signal_channel} {self.user} {int(self.with_dbscan)}')
             f.write('\n')
 
         # run it on compute (cpu) partition
