@@ -33,4 +33,4 @@ try:
 except:
     pass
 
-tifffile.imwrite(full_output_path, plane)
+tifffile.imwrite(full_output_path, plane, tile=(512, 512), compression="zlib")

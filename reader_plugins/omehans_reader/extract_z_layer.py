@@ -29,4 +29,4 @@ tifffile.imwrite(os.path.join(
     f"resolution_level_{str(resolution_level)}",
     f"channel_{str(channel)}",
     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
-), plane)
+), plane, tile=(512, 512), compression="zlib")
