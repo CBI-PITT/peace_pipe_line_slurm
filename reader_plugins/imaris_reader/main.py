@@ -17,19 +17,26 @@ class imaris_reader(ImageReader):
         super().__init__(input, output, **kwargs)
         self.user = kwargs.get('user', 'lab')
         self.channel = int(kwargs.get('channel', 0))
+        self.all_channels = int(kwargs.get('all_channels', False))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
-
-        self.jobs_folder = os.path.join(self.output, "slurm_jobs")
-        self.extracted_tiffs_folder = os.path.join(
-            self.output,
-            f'resolution_level_{self.resolution_level}',
-            f'channel_{self.channel}'
-        )
         self.ims_file = ims(self.input)
+        self.channels = self.ims_file.Channels
+        self.jobs_folder = os.path.join(self.output, "slurm_jobs")
+        if self.all_channels:
+            self.extracted_tiffs_folders = [
+                os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{x}')
+                for x in range(self.channels)
+            ]
+        else:
+            self.extracted_tiffs_folders = [
+                os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{self.channel}')
+            ]
+
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
-        if not os.path.exists(self.extracted_tiffs_folder):
-            os.makedirs(self.extracted_tiffs_folder)
+        for extracted_tiffs_folder in self.extracted_tiffs_folders:
+            if not os.path.exists(extracted_tiffs_folder):
+                os.makedirs(extracted_tiffs_folder)
 
     def run(self):
         print("Running Imaris Reader")
@@ -37,11 +44,19 @@ class imaris_reader(ImageReader):
         metadata = self.initialize_info_file()
         with open(os.path.join(self.output, f'resolution_level_{self.resolution_level}', settings.INFO_FILE_NAME), "w") as f:
             f.write(json.dumps(metadata))
-        metadata['channel'] = self.channel
-        with open(os.path.join(self.extracted_tiffs_folder, f".{settings.INFO_FILE_NAME}"), "w") as f:
-            f.write(json.dumps(metadata))
-        # extract tiff series in SLURM
-        self.extract_tiff_series()
+        if self.all_channels:
+            for channel in range(self.channels):
+                metadata['channel'] = channel
+                with open(os.path.join(self.extracted_tiffs_folders[channel], f".{settings.INFO_FILE_NAME}"), "w") as f:
+                    f.write(json.dumps(metadata))
+            self.extract_tiff_series_all_channels()
+        else:
+            metadata['channel'] = self.channel
+            with open(os.path.join(self.extracted_tiffs_folders[0], f".{settings.INFO_FILE_NAME}"), "w") as f:
+                f.write(json.dumps(metadata))
+            # extract tiff series in SLURM
+            self.extract_tiff_series()
+
         # # check extraction progress
         # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
         # extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
@@ -89,6 +104,47 @@ class imaris_reader(ImageReader):
             path_to_task
         ]
         subprocess.run(command)
+
+    def extract_tiff_series_all_channels(self):
+        for channel in range(self.channels):
+            z_layers = self.ims_file.metaData[(self.resolution_level, 0, channel, 'shape')][-3]
+            path_to_task = os.path.join(self.jobs_folder, f"extract_imaris_z_layers_rl{self.resolution_level}_c{channel}.sh")
+            main_script = os.path.abspath(__file__)
+            slurm_script = os.path.join(os.path.dirname(main_script), "extract_imaris_z_layer.py")
+            with open(path_to_task, 'w') as f:
+                f.write('#!/bin/bash\n')
+                f.write('\n')
+                f.write(f"#SBATCH -J {self.user}-extract-tiffs")
+                f.write('\n')
+                f.write(f"#SBATCH -o {self.output}/slurm_jobs/slurm_%j.out")
+                f.write('\n')
+                f.write('\n')
+                f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO create a separate env?
+                f.write('\n')
+                f.write(f'python {slurm_script}')
+                f.write(' ')
+                f.write(str(self.input if ' ' not in self.input else f'"{self.input}"'))
+                f.write(' ')
+                f.write(str(self.output if ' ' not in self.output else f'"{self.output}"'))
+                f.write(' ')
+                f.write(str(self.resolution_level))
+                f.write(' ')
+                f.write(str(channel))
+                f.write(' ')
+                f.write('$SLURM_ARRAY_TASK_ID')
+                f.write('\n')
+
+            #### run it on compute (cpu) partition
+            command = [
+                'sbatch',
+                f'--array=0-{z_layers-1}',
+                '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+                '--mem=32Gb',
+                '-n12',
+                f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+                path_to_task
+            ]
+            subprocess.run(command)
 
     def initialize_info_file(self):
         orientation = guess_orientation(self.ims_file, save_100um_volume=True, out_dir=self.output)

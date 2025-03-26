@@ -13,7 +13,7 @@ USERNAME = getpass.getuser()
 # USERNAME = 'lab'  # user that runs the pipeline
 HOME = Path.home()
 
-SLURM_JOBS_NICE_LEVEL = 500
+SLURM_JOBS_NICE_LEVEL = 50000000
 SLURM_PARTITION_CPU = 'compute'
 SLURM_PARTITION_GPU = 'gpu'
 SLURM_PARTITION_HIGH_RAM = 'gpu'
