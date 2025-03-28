@@ -8,6 +8,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_job
 
 
 class cellfinder(ImageOperation):
@@ -28,6 +29,7 @@ class cellfinder(ImageOperation):
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.output_operation_folder = os.path.join(self.output, 'cellfinder')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
         self.detection_folder = os.path.join(
@@ -75,14 +77,20 @@ class cellfinder(ImageOperation):
             f.write('\n')
 
         print("Starting cellfinder detection...")
-        #### run on gpu partition
-        command = [
-            'sbatch',
-            '-p', settings.SLURM_PARTITION_HIGH_RAM,
-            '--mem=64Gb',
-            '-n8',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=8,
+            memory=64,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', settings.SLURM_PARTITION_HIGH_RAM,
+        #     '--mem=64Gb',
+        #     '-n8',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)
 

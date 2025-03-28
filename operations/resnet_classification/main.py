@@ -6,12 +6,14 @@ from glob import glob
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_job
 
 
 class resnet_classification(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.cells = kwargs['cell_candidates_path']
         self.model_path = kwargs['model_path']
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
@@ -64,15 +66,23 @@ class resnet_classification(ImageOperation):
             f.write(self.model_path if ' ' not in self.model_path else f'"{self.model_path}"')
             f.write(' ')
             f.write(self.user)
+            f.write(' ')
+            f.write(self.priority)
             f.write('\n')
 
-        #### run it on compute (cpu) partition
-        command = [
-            'sbatch',
-            '-p', settings.SLURM_PARTITION_CPU,
-            '--mem=64Gb',
-            '-n24',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_CPU}',
+            cores=24,
+            memory=64,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', settings.SLURM_PARTITION_CPU,
+        #     '--mem=64Gb',
+        #     '-n24',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)

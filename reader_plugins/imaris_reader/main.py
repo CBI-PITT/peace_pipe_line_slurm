@@ -10,12 +10,14 @@ from analysis import settings
 from analysis.guess_background_channel import guess_background
 from analysis.guess_brain_orientation import guess_orientation
 from operations.base import ImageReader
+from utils.slurm import submit_slurm_array
 
 
 class imaris_reader(ImageReader):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.channel = int(kwargs.get('channel', 0))
         self.all_channels = int(kwargs.get('all_channels', False))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
@@ -93,17 +95,25 @@ class imaris_reader(ImageReader):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
-        #### run it on compute (cpu) partition
-        command = [
-            'sbatch',
-            f'--array=0-{z_layers-1}',
-            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            '--mem=32Gb',
-            '-n12',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_array(
+            path_to_task,
+            z_layers,
+            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=12,
+            memory=32,
+            priority=self.priority
+        )
+        # nice_value = settings.PRIORITY_TO_NICE_MAP_COMPUTE[self.priority]
+        # command = [
+        #     'sbatch',
+        #     f'--array=0-{z_layers-1}',
+        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+        #     '--mem=32Gb',
+        #     '-n12',
+        #     f'--nice={nice_value}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)
 
     def extract_tiff_series_all_channels(self):
         for channel in range(self.channels):
@@ -116,7 +126,7 @@ class imaris_reader(ImageReader):
                 f.write('\n')
                 f.write(f"#SBATCH -J {self.user}-extract-tiffs")
                 f.write('\n')
-                f.write(f"#SBATCH -o {self.output}/slurm_jobs/slurm_%j.out")
+                f.write(f"#SBATCH -o {self.output}/slurm_jobs/slurm_extract_tiffs_%j.out")
                 f.write('\n')
                 f.write('\n')
                 f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO create a separate env?
@@ -134,17 +144,24 @@ class imaris_reader(ImageReader):
                 f.write('$SLURM_ARRAY_TASK_ID')
                 f.write('\n')
 
-            #### run it on compute (cpu) partition
-            command = [
-                'sbatch',
-                f'--array=0-{z_layers-1}',
-                '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-                '--mem=32Gb',
-                '-n12',
-                f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-                path_to_task
-            ]
-            subprocess.run(command)
+            submit_slurm_array(
+                path_to_task,
+                z_layers,
+                partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+                cores=12,
+                memory=32,
+                priority=self.priority
+            )
+            # command = [
+            #     'sbatch',
+            #     f'--array=0-{z_layers-1}',
+            #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            #     '--mem=32Gb',
+            #     '-n12',
+            #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            #     path_to_task
+            # ]
+            # subprocess.run(command)
 
     def initialize_info_file(self):
         orientation = guess_orientation(self.ims_file, save_100um_volume=True, out_dir=self.output)

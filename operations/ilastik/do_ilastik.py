@@ -47,6 +47,12 @@ output_file = os.path.join(
 
 print("Running ilastik")
 img = tifffile.imread(input_file)
-img = binarize(img)
+try:
+    img = binarize(img)
+except:
+    img = np.zeros(img.shape, img.dtype)
+    import traceback
+    print(traceback.format_exc())
+
 tifffile.imwrite(output_file, img)
 print("Done")

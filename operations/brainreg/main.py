@@ -10,6 +10,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_job
 
 
 class brainreg(ImageOperation):
@@ -35,6 +36,7 @@ class brainreg(ImageOperation):
         self.resolution_level = int(self.metadata['resolution_level'])
         self.resolution = self.metadata['resolution']
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', self.metadata['orientation'])
         self.brain_geometry = kwargs.get('brain_geometry', "full")
@@ -107,14 +109,19 @@ class brainreg(ImageOperation):
             f.write('\n')
 
         print("Starting registration...")
-        #### run on compute (cpu) partition
-        command = [
-            'sbatch',
-            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            '--mem=64Gb',
-            '-n24',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
-
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=24,
+            memory=64,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+        #     '--mem=64Gb',
+        #     '-n24',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)

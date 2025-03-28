@@ -14,6 +14,7 @@ import subprocess
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_job
 
 
 # CHUNK_SIZE = (40, 1700, 3500)
@@ -39,6 +40,7 @@ class deepblink(ImageOperation):
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.with_dbscan = kwargs.get('with_dbscan', False)
         self.output_operation_folder = os.path.join(self.output, 'deepblink')
         self.chunks_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "deepblink_chunks")
@@ -91,19 +93,25 @@ class deepblink(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.signal_channel} {self.user} {int(self.with_dbscan)}')
+            f.write(f'{self.resolution_level} {self.signal_channel} {self.user} {int(self.with_dbscan)} {self.priority}')
             f.write('\n')
 
-        # run it on compute (cpu) partition
-        command = [
-            'sbatch',
-            '-p', settings.SLURM_PARTITION_HIGH_RAM,
-            '--mem=128Gb',
-            '-n8',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=8,
+            memory=128,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', settings.SLURM_PARTITION_HIGH_RAM,
+        #     '--mem=128Gb',
+        #     '-n8',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)
 
 
     # def get_chunking(self):

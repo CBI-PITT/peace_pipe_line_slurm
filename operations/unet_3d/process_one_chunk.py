@@ -13,6 +13,15 @@ import tifffile
 
 
 INFO_FILE_NAME = "dataset_info.json"
+PRIORITY_TO_NICE_MAP_GPU = {
+    '0': 1000000,  # priority 1 for GPU;       priority 1 for compute n24 mem64
+    '1': 129000,   # priority 18 for GPU;
+    '2': 125000,   # priority 4018 for GPU;
+    '3': 120000,   # priority 9018 for GPU;
+    '4': 110000,   # priority 19018 for GPU;
+    '5': 100000,    # priority 29018 for GPU;   priority 1 for compute n24 mem64
+    '1313': 0
+}
 
 
 def extract_chunk_from_imaris_by_number(number):
@@ -99,13 +108,14 @@ def write_detection_task_for_slurm(chunk_number, output_path):
 
 
 def submit_slurm_task_gpu(path_to_task):
+    nice_value = PRIORITY_TO_NICE_MAP_GPU[priority]
     command = [
         'sbatch',
         '-p', 'gpu',
         '--gres=gpu:1',
         '--mem=64Gb',
         '-n8',
-        '--nice=500',
+        f'--nice={nice_value}',
         path_to_task
     ]
     subprocess.run(command)
@@ -163,11 +173,10 @@ signal_channel = int(sys.argv[4])
 chunk_number = int(sys.argv[5])
 model = sys.argv[6]
 username = sys.argv[7]
+priority = sys.argv[8]
 
 metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
-
-print("source", source)
 
 jobs_folder = os.path.join(OUTPUT_DIR, "unet_3d", "slurm_jobs")
 

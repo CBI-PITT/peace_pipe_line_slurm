@@ -10,6 +10,7 @@ import tifffile
 from operations.base import ImageReader
 from analysis import settings
 from analysis.guess_brain_orientation import _guess_orientation
+from utils.slurm import submit_slurm_array, submit_slurm_job
 
 
 class omehans_reader(ImageReader):
@@ -18,6 +19,7 @@ class omehans_reader(ImageReader):
         self.channel = int(kwargs.get('channel', 0))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
 
         self.jobs_folder = os.path.join(self.output, "slurm_jobs")
         self.extracted_tiffs_folder = os.path.join(
@@ -79,17 +81,24 @@ class omehans_reader(ImageReader):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
-        #### run it on compute (cpu) partition
-        command = [
-            'sbatch',
-            f'--array=0-{z_layers-1}',
-            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            '--mem=32Gb',
-            '-n12',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_array(
+            path_to_task,
+            z_layers,
+            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=12,
+            memory=32,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     f'--array=0-{z_layers-1}',
+        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+        #     '--mem=32Gb',
+        #     '-n12',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)
 
     def initialize_info_file(self):
         metadata = json.load(open(os.path.join(self.input, '.zattrs'), 'r'))
@@ -140,15 +149,22 @@ class omehans_reader(ImageReader):
             f.write(str(self.channel))
             f.write('\n')
 
-        command = [
-            'sbatch',
-            '-p', settings.SLURM_PARTITION_CPU,
-            '--mem=32Gb',
-            '-n12',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_CPU}',
+            cores=4,
+            memory=32,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', settings.SLURM_PARTITION_CPU,
+        #     '--mem=32Gb',
+        #     '-n12',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)
 
         while True:
             try:

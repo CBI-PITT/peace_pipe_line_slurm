@@ -105,7 +105,7 @@ def submit_slurm_task_gpu(path_to_task):
         '--gres=gpu:1',
         '--mem=64Gb',
         '-n8',
-        f'--nice=500',  # TODO use settings
+        f'--nice={nice_value}',
         path_to_task
     ]
     subprocess.run(command)
@@ -163,6 +163,7 @@ signal_channel = int(sys.argv[4])
 chunk_number = int(sys.argv[5])
 model = sys.argv[6]
 username = sys.argv[7]
+nice_value = sys.argv[8]
 
 metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
 source = metadata['source']

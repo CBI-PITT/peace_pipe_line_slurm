@@ -14,6 +14,25 @@ import tifffile
 
 DEEPBLINK_MODEL_PATH = '/h20/CBI/Iana/src/deepblink/models/deepblink_particle.h5'
 INFO_FILE_NAME = "dataset_info.json"
+PRIORITY_TO_NICE_MAP_GPU = {
+    '0': 1000000,  # priority 1 for GPU;       priority 1 for compute n24 mem64
+    '1': 129000,   # priority 18 for GPU;
+    '2': 125000,   # priority 4018 for GPU;
+    '3': 120000,   # priority 9018 for GPU;
+    '4': 110000,   # priority 19018 for GPU;
+    '5': 100000,    # priority 29018 for GPU;   priority 1 for compute n24 mem64
+    '1313': 0
+}
+
+PRIORITY_TO_NICE_MAP_COMPUTE = {
+    '0': 1000000,  # priority 1 for compute n24 mem64;      priority 1 for GPU
+    '1': 61500,    # priority 77 for compute n24 mem64;
+    '2': 61000,    # priority 577 for compute n24 mem64;
+    '3': 60000,    # priority 1577 for compute n24 mem64;
+    '4': 50000,    # priority 11577 for compute n24 mem64;
+    '5': 40000,     # priority 21577 for compute n24 mem64;
+    '1313': 0
+}
 
 
 def extract_chunk_from_imaris_by_number(number):
@@ -92,13 +111,14 @@ def write_detection_task_for_slurm(chunk_number, output_path):
 
 
 def submit_slurm_task_gpu(path_to_task):
+    nice_value = PRIORITY_TO_NICE_MAP_GPU[priority]
     command = [
         'sbatch',
         '-p', 'gpu',  # TODO use settings
         '--gres=gpu:1',
         '--mem=64Gb',
         '-n8',
-        f'--nice=500', # TODO use settings
+        f'--nice={nice_value}',
         path_to_task
     ]
     subprocess.run(command)
@@ -166,6 +186,7 @@ def run_dbscan_on_chunk(chunk_number):
         os.makedirs(output_dir)
     except:
         pass
+    nice_value = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
 
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
@@ -188,7 +209,7 @@ def run_dbscan_on_chunk(chunk_number):
         '-p', 'compute,gpu',
         '--mem=32Gb',
         '-n8',
-        '--nice=500',
+        f'--nice={nice_value}',
         path_to_task
     ]
     # print("command", command)
@@ -242,7 +263,8 @@ resolution_level = int(sys.argv[3])
 signal_channel = int(sys.argv[4])
 username = sys.argv[5]
 with_dbscan = int(sys.argv[6])
-chunk_number = int(sys.argv[7])
+priority = sys.argv[7]
+chunk_number = int(sys.argv[8])
 
 metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
 source = metadata['source']

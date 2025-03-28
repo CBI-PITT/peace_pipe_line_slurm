@@ -8,9 +8,10 @@ import numpy as np
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_array
 
 
-CHUNK_SIZE = (40, 1700, 3500)
+CHUNK_SIZE = settings.DEEPBLINK_CHUNK_SIZE
 
 
 class unet_3d(ImageOperation):
@@ -20,6 +21,7 @@ class unet_3d(ImageOperation):
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.model = kwargs.get('model')  # TODO: add default model
 
         self.output_operation_folder = os.path.join(self.output, 'unet_3d')
@@ -111,18 +113,24 @@ class unet_3d(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user}')
+            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {self.priority}')
             f.write('\n')
 
-        # run it on compute (cpu) partition
-        command = [
-            'sbatch',
-            f'--array=0-{number_of_chunks}',
-            '-p', settings.SLURM_PARTITION_CPU,
-            '--mem=32Gb',
-            '-n12',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        # print("command", command)
-        subprocess.run(command)
+        submit_slurm_array(
+            path_to_task,
+            number_of_chunks,
+            partition=f'{settings.SLURM_PARTITION_CPU}',
+            cores=12,
+            memory=32,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     f'--array=0-{number_of_chunks}',
+        #     '-p', settings.SLURM_PARTITION_CPU,
+        #     '--mem=32Gb',
+        #     '-n12',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)

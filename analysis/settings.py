@@ -17,8 +17,27 @@ SLURM_JOBS_NICE_LEVEL = 50000000
 SLURM_PARTITION_CPU = 'compute'
 SLURM_PARTITION_GPU = 'gpu'
 SLURM_PARTITION_HIGH_RAM = 'gpu'
+PRIORITY_TO_NICE_MAP_GPU = {
+    '0': 1000000,  # priority 1 for GPU;       priority 1 for compute n24 mem64
+    '1': 129000,   # priority 18 for GPU;
+    '2': 125000,   # priority 4018 for GPU;
+    '3': 120000,   # priority 9018 for GPU;
+    '4': 110000,   # priority 19018 for GPU;
+    '5': 100000,    # priority 29018 for GPU;   priority 1 for compute n24 mem64
+    '1313': 0
+}
 
-TIFF_TILE_SIZE = (512,512)
+PRIORITY_TO_NICE_MAP_COMPUTE = {
+    '0': 1000000,  # priority 1 for compute n24 mem64;      priority 1 for GPU
+    '1': 61500,    # priority 77 for compute n24 mem64;
+    '2': 61000,    # priority 577 for compute n24 mem64;
+    '3': 60000,    # priority 1577 for compute n24 mem64;
+    '4': 50000,    # priority 11577 for compute n24 mem64;
+    '5': 40000,     # priority 21577 for compute n24 mem64;
+    '1313': 0
+}
+
+TIFF_TILE_SIZE = (512, 512)
 
 ALLEN_RESOLUTION = 10
 CELLFINDER_SOMA_DIAMETER = 10

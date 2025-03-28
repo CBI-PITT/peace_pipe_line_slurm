@@ -11,6 +11,15 @@ import pandas as pd
 
 
 INFO_FILE_NAME = "dataset_info.json"
+PRIORITY_TO_NICE_MAP_COMPUTE = {
+    '0': 1000000,  # priority 1 for compute n24 mem64;      priority 1 for GPU
+    '1': 61500,    # priority 77 for compute n24 mem64;
+    '2': 61000,    # priority 577 for compute n24 mem64;
+    '3': 60000,    # priority 1577 for compute n24 mem64;
+    '4': 50000,    # priority 11577 for compute n24 mem64;
+    '5': 40000,     # priority 21577 for compute n24 mem64;
+    '1313': 0
+}
 
 
 def launch_job_array():
@@ -20,6 +29,7 @@ def launch_job_array():
     )
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "process_z_layer.py")
+    nice_value = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -49,8 +59,7 @@ def launch_job_array():
         '-p', f'compute,gpu',
         '--mem=32Gb',
         '-n12',
-        f'--nice=0',
-        # f'--nice=50000000',
+        f'--nice={nice_value}',
         path_to_task
     ]
     subprocess.run(command)
@@ -78,6 +87,7 @@ POINTS_DF = sys.argv[3]
 MASKS_DIR = sys.argv[4]
 GLOBAL_OUTPUT = sys.argv[5]
 username = sys.argv[6]
+priority = sys.argv[7]
 
 metadata = json.load(open(os.path.join(INPUT_TIFF_STACK_DIR, f'.{INFO_FILE_NAME}'), 'r'))
 z_layers = metadata['shape'][-3]

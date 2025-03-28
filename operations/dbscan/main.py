@@ -6,6 +6,7 @@ from glob import glob
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_job
 
 
 class dbscan(ImageOperation):
@@ -16,6 +17,7 @@ class dbscan(ImageOperation):
         self.resolution_level = self.metadata['resolution_level']
 
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.points = kwargs["cell_candidates_path"]
         self.epsilon = int(kwargs.get("epsilon", 3))
         self.min_samples = int(kwargs.get("min_samples", 2))
@@ -64,13 +66,19 @@ class dbscan(ImageOperation):
             f.write(str(self.min_samples))
             f.write('\n')
 
-        #### run it on compute (cpu) partition
-        command = [
-            'sbatch',
-            '-p', settings.SLURM_PARTITION_HIGH_RAM,
-            '--mem=256Gb',
-            '-n24',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=24,
+            memory=256,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', settings.SLURM_PARTITION_HIGH_RAM,
+        #     '--mem=256Gb',
+        #     '-n24',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)

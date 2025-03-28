@@ -12,6 +12,15 @@ import pandas as pd
 
 CHUNK_SIZE = (40, 1700, 3500)
 INFO_FILE_NAME = "dataset_info.json"
+PRIORITY_TO_NICE_MAP_COMPUTE = {
+    '0': 1000000,  # priority 1 for compute n24 mem64;      priority 1 for GPU
+    '1': 61500,    # priority 77 for compute n24 mem64;
+    '2': 61000,    # priority 577 for compute n24 mem64;
+    '3': 60000,    # priority 1577 for compute n24 mem64;
+    '4': 50000,    # priority 11577 for compute n24 mem64;
+    '5': 40000,     # priority 21577 for compute n24 mem64;
+    '1313': 0
+}
 
 
 def get_origin_coords(ndim, patchify_chunks_shape, chunk_size):
@@ -63,6 +72,7 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
     path_to_task = os.path.join(jobs_folder, f"cpu_array_all_chunks.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
+    nice_value = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -78,7 +88,7 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         f.write(' ')
         f.write(OUTPUT_DIR)
         f.write(' ')
-        f.write(f'{resolution_level} {signal_channel} {username} {with_dbscan} $SLURM_ARRAY_TASK_ID')
+        f.write(f'{resolution_level} {signal_channel} {username} {with_dbscan} {priority} $SLURM_ARRAY_TASK_ID')
         f.write('\n')
 
     # run it on compute (cpu) partition
@@ -88,7 +98,7 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         '-p', 'compute',
         '--mem=32Gb',
         '-n12',
-        '--nice=500',
+        f'--nice={nice_value}',
         path_to_task
     ]
     # print("command", command)
@@ -158,6 +168,7 @@ resolution_level = int(sys.argv[3])
 signal_channel = int(sys.argv[4])
 username = sys.argv[5]
 with_dbscan = int(sys.argv[6])
+priority = sys.argv[7]
 
 metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
 output_operation_folder = os.path.join(OUTPUT_DIR, 'deepblink')

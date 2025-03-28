@@ -16,6 +16,7 @@ class rembg(ImageOperation):
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
 
         self.output_operation_folder = os.path.join(self.output, 'rembg')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
@@ -70,6 +71,7 @@ class rembg(ImageOperation):
             f.write('\n')
 
         #### run it on compute (cpu) partition
+        nice_value = settings.PRIORITY_TO_NICE_MAP_COMPUTE[self.priority]
         command = [
             'sbatch',
             f'--array=0-{z_layers-1}',
@@ -77,7 +79,7 @@ class rembg(ImageOperation):
             '-p', settings.SLURM_PARTITION_CPU,
             '--mem=32Gb',
             '-n12',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+            f'--nice={nice_value}',
             path_to_task
         ]
         subprocess.run(command)

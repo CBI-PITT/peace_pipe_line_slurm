@@ -9,11 +9,23 @@ import numpy as np
 import pandas as pd
 
 
+PRIORITY_TO_NICE_MAP_GPU = {
+    '0': 1000000,  # priority 1 for GPU;       priority 1 for compute n24 mem64
+    '1': 129000,   # priority 18 for GPU;
+    '2': 125000,   # priority 4018 for GPU;
+    '3': 120000,   # priority 9018 for GPU;
+    '4': 110000,   # priority 19018 for GPU;
+    '5': 100000,    # priority 29018 for GPU;   priority 1 for compute n24 mem64
+    '1313': 0
+}
+
+
 input_dir = sys.argv[1]
 output_dir = sys.argv[2]  # output/resnet_classification/resolution_level_<>/channel_<>/
 cell_candidates_path = sys.argv[3]  # .csv
 model_path = sys.argv[4]  # pytorch
 username = sys.argv[5]
+priority = sys.argv[6]
 
 metadata_path = os.path.join(input_dir, '.dataset_info.json')
 metadata = json.load(open(metadata_path, 'r'))
@@ -115,7 +127,7 @@ command = [
     '--gres=gpu:1',
     '--mem=64Gb',
     '-n8',
-    '--nice=500',
+    f'--nice={PRIORITY_TO_NICE_MAP_GPU[priority]}',
     path_to_task
 ]
 subprocess.run(command)

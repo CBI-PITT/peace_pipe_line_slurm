@@ -6,6 +6,7 @@ from glob import glob
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_job
 
 
 class delete_background_detections(ImageOperation):
@@ -16,6 +17,7 @@ class delete_background_detections(ImageOperation):
         self.resolution_level = self.metadata['resolution_level']
 
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.points = kwargs["cell_candidates_path"]
         self.masks = kwargs["fg_mask_path"]
 
@@ -66,15 +68,23 @@ class delete_background_detections(ImageOperation):
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
             f.write(self.user)
+            f.write(' ')
+            f.write(self.priority)
             f.write('\n')
 
-        command = [
-            'sbatch',
-            '-p', f'{settings.SLURM_PARTITION_HIGH_RAM}',
-            '--mem=32Gb',
-            '-n12',
-            f'--nice=0',
-            # f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=12,
+            memory=32,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', f'{settings.SLURM_PARTITION_HIGH_RAM}',
+        #     '--mem=32Gb',
+        #     '-n12',
+        #     # f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)

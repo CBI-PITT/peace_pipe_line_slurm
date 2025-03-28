@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from glob import glob
 
 import numpy as np
 import pandas as pd
@@ -47,9 +48,11 @@ def remove_background_detections(options):
         partial_df = df[df["axis-0"] == z_layer]
         print("partial DF", partial_df.shape)
 
-        mask = tifffile.imread(
-            os.path.join(MASKS_DIR, f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z_layer).zfill(4)}.tif")  # TODO naming can differ bw methods
-        )
+        # mask = tifffile.imread(
+        #     os.path.join(MASKS_DIR, f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z_layer).zfill(4)}.tif")  # TODO naming can differ bw methods
+        # )
+        mask_match = glob(os.path.join(MASKS_DIR, f'*_z{str(z_layer).zfill(4)}.tif'))
+        mask = tifffile.imread(mask_match[0])
         mask = (mask >= 0.5).astype('uint8')
         print("min mask", mask.min())
         print("max mask", mask.max())
@@ -68,6 +71,8 @@ def remove_background_detections(options):
     except:
         df = pd.DataFrame()
         df.to_csv(os.path.join(OUTPUT_DIR, f'partial_df_z{str(z_layer).zfill(5)}.csv'))
+        import traceback
+        print(traceback.format_exc())
 
 
 INPUT_TIFF_STACK_DIR = sys.argv[1]

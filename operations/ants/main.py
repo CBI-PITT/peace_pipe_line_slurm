@@ -12,6 +12,7 @@ from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_job
 
 
 class ants(ImageOperation):
@@ -34,6 +35,7 @@ class ants(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.background_channel = int(self.metadata['channel'])
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', "sal")
         self.resolution_level = int(self.metadata['resolution_level'])
@@ -125,13 +127,19 @@ class ants(ImageOperation):
             f.write('\n')
 
         print("Starting registration...")
-        #### run on compute (cpu) partition
-        command = [
-            'sbatch',
-            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            '--mem=64Gb',
-            '-n24',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=24,
+            memory=64,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+        #     '--mem=64Gb',
+        #     '-n24',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)

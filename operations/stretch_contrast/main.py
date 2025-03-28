@@ -8,6 +8,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
+from utils.slurm import submit_slurm_array
 
 
 class stretch_contrast(ImageOperation):
@@ -17,6 +18,7 @@ class stretch_contrast(ImageOperation):
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
         self.user = kwargs.get('user', 'lab')
+        self.priority = kwargs.get('priority', '2')
 
         self.output_operation_folder = os.path.join(self.output, 'stretch_contrast')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
@@ -76,14 +78,21 @@ class stretch_contrast(ImageOperation):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
-        #### run it on compute (cpu) partition
-        command = [
-            'sbatch',
-            f'--array=0-{z_layers-1}',
-            '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            '--mem=32Gb',
-            '-n12',
-            f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            path_to_task
-        ]
-        subprocess.run(command)
+        submit_slurm_array(
+            path_to_task,
+            z_layers,
+            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=12,
+            memory=32,
+            priority=self.priority
+        )
+        # command = [
+        #     'sbatch',
+        #     f'--array=0-{z_layers-1}',
+        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+        #     '--mem=32Gb',
+        #     '-n12',
+        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
+        #     path_to_task
+        # ]
+        # subprocess.run(command)
