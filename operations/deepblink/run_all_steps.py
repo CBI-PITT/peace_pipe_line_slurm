@@ -9,18 +9,18 @@ from glob import glob
 import numpy as np
 import pandas as pd
 
+from pathlib import Path
+this_script = Path(__file__)
+deepblink_folder = this_script.parent
+operations_folder = deepblink_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
 
-CHUNK_SIZE = (40, 1700, 3500)
-INFO_FILE_NAME = "dataset_info.json"
-PRIORITY_TO_NICE_MAP_COMPUTE = {
-    '0': 1000000,  # priority 1 for compute n24 mem64;      priority 1 for GPU
-    '1': 61500,    # priority 77 for compute n24 mem64;
-    '2': 61000,    # priority 577 for compute n24 mem64;
-    '3': 60000,    # priority 1577 for compute n24 mem64;
-    '4': 50000,    # priority 11577 for compute n24 mem64;
-    '5': 40000,     # priority 21577 for compute n24 mem64;
-    '1313': 0
-}
+from analysis import settings
+from utils.slurm import submit_slurm_array
+
+
+CHUNK_SIZE = settings.DEEPBLINK_CHUNK_SIZE
 
 
 def get_origin_coords(ndim, patchify_chunks_shape, chunk_size):
@@ -72,7 +72,7 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
     path_to_task = os.path.join(jobs_folder, f"cpu_array_all_chunks.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
-    nice_value = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
+    # nice_value = settings.PRIORITY_TO_NICE_MAP_COMPUTE[priority]
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -91,18 +91,24 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         f.write(f'{resolution_level} {signal_channel} {username} {with_dbscan} {priority} $SLURM_ARRAY_TASK_ID')
         f.write('\n')
 
-    # run it on compute (cpu) partition
-    command = [
-        'sbatch',
-        f'--array=0-{number_of_chunks}',
-        '-p', 'compute',
-        '--mem=32Gb',
-        '-n12',
-        f'--nice={nice_value}',
-        path_to_task
-    ]
-    # print("command", command)
-    subprocess.run(command)
+    submit_slurm_array(
+        path_to_task,
+        number_of_chunks,
+        partition=f'{settings.SLURM_PARTITION_CPU}',
+        cores=12,
+        memory=32,
+        priority=priority
+    )
+    # command = [
+    #     'sbatch',
+    #     f'--array=0-{number_of_chunks}',
+    #     '-p', 'compute',
+    #     '--mem=32Gb',
+    #     '-n12',
+    #     f'--nice={nice_value}',
+    #     path_to_task
+    # ]
+    # subprocess.run(command)
 
 
 def merge_df():
@@ -170,7 +176,7 @@ username = sys.argv[5]
 with_dbscan = int(sys.argv[6])
 priority = sys.argv[7]
 
-metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
 output_operation_folder = os.path.join(OUTPUT_DIR, 'deepblink')
 napari_folder = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", "detection_napari")
 chunks_folder = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", "deepblink_chunks")

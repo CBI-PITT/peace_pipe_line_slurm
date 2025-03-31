@@ -11,28 +11,21 @@ import dask.array as da
 from imaris_ims_file_reader import ims
 import tifffile
 
+from pathlib import Path
+this_script = Path(__file__)
+deepblink_folder = this_script.parent
+operations_folder = deepblink_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
 
-DEEPBLINK_MODEL_PATH = '/h20/CBI/Iana/src/deepblink/models/deepblink_particle.h5'
-INFO_FILE_NAME = "dataset_info.json"
-PRIORITY_TO_NICE_MAP_GPU = {
-    '0': 1000000,  # priority 1 for GPU;       priority 1 for compute n24 mem64
-    '1': 129000,   # priority 18 for GPU;
-    '2': 125000,   # priority 4018 for GPU;
-    '3': 120000,   # priority 9018 for GPU;
-    '4': 110000,   # priority 19018 for GPU;
-    '5': 100000,    # priority 29018 for GPU;   priority 1 for compute n24 mem64
-    '1313': 0
-}
+from analysis import settings
+from utils.slurm import submit_slurm_job
 
-PRIORITY_TO_NICE_MAP_COMPUTE = {
-    '0': 1000000,  # priority 1 for compute n24 mem64;      priority 1 for GPU
-    '1': 61500,    # priority 77 for compute n24 mem64;
-    '2': 61000,    # priority 577 for compute n24 mem64;
-    '3': 60000,    # priority 1577 for compute n24 mem64;
-    '4': 50000,    # priority 11577 for compute n24 mem64;
-    '5': 40000,     # priority 21577 for compute n24 mem64;
-    '1313': 0
-}
+
+DEEPBLINK_MODEL_PATH = settings.DEEPBLINK_MODEL_PATH
+INFO_FILE_NAME = settings.INFO_FILE_NAME
+PRIORITY_TO_NICE_MAP_GPU = settings.PRIORITY_TO_NICE_MAP_GPU
+PRIORITY_TO_NICE_MAP_COMPUTE = settings.PRIORITY_TO_NICE_MAP_COMPUTE
 
 
 def extract_chunk_from_imaris_by_number(number):
@@ -111,17 +104,25 @@ def write_detection_task_for_slurm(chunk_number, output_path):
 
 
 def submit_slurm_task_gpu(path_to_task):
-    nice_value = PRIORITY_TO_NICE_MAP_GPU[priority]
-    command = [
-        'sbatch',
-        '-p', 'gpu',  # TODO use settings
-        '--gres=gpu:1',
-        '--mem=64Gb',
-        '-n8',
-        f'--nice={nice_value}',
-        path_to_task
-    ]
-    subprocess.run(command)
+    submit_slurm_job(
+        path_to_task,
+        partition=f'{settings.SLURM_PARTITION_GPU}',
+        cores=8,
+        memory=64,
+        needs_gpu=True,
+        priority=priority
+    )
+    # nice_value = PRIORITY_TO_NICE_MAP_GPU[priority]
+    # command = [
+    #     'sbatch',
+    #     '-p', 'gpu',  # TODO use settings
+    #     '--gres=gpu:1',
+    #     '--mem=64Gb',
+    #     '-n8',
+    #     f'--nice={nice_value}',
+    #     path_to_task
+    # ]
+    # subprocess.run(command)
 
 
 def detect_cells_deepblink_one_chunk(chunk_number):
@@ -186,7 +187,7 @@ def run_dbscan_on_chunk(chunk_number):
         os.makedirs(output_dir)
     except:
         pass
-    nice_value = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
+    # nice_value = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
 
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
@@ -204,16 +205,24 @@ def run_dbscan_on_chunk(chunk_number):
         f.write(output_dir if ' ' not in output_dir else f'"{output_dir}"')
         f.write('\n')
 
-    command = [
-        'sbatch',
-        '-p', 'compute,gpu',
-        '--mem=32Gb',
-        '-n8',
-        f'--nice={nice_value}',
-        path_to_task
-    ]
-    # print("command", command)
-    subprocess.run(command)
+    submit_slurm_job(
+        path_to_task,
+        # partition=f'{settings.SLURM_PARTITION_CPU,settings.SLURM_PARTITION_HIGH_RAM}',
+        partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+        cores=8,
+        memory=32,
+        priority=priority
+    )
+    # command = [
+    #     'sbatch',
+    #     '-p', 'compute,gpu',
+    #     '--mem=32Gb',
+    #     '-n8',
+    #     f'--nice={nice_value}',
+    #     path_to_task
+    # ]
+    # # print("command", command)
+    # subprocess.run(command)
 
 
 def extract_detect_deepblink_delete(number):

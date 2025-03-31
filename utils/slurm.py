@@ -11,7 +11,9 @@ def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8,
         nice = PRIORITY_TO_NICE_MAP_GPU[priority]
     else:
         nice = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
+        nice = int(nice * (cores / 24.))
 
+    print("============nice===========", nice)
     command = [
         'sbatch',
         '-p', partition,
