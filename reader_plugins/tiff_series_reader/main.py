@@ -24,6 +24,7 @@ class tiff_series_reader(ImageReader):
         # create info json files with metadata
         metadata = self.initialize_info_file()
         metadata['channel'] = self.channel
+        os.umask(settings.UMASK)
         with open(os.path.join(self.output, f".{settings.INFO_FILE_NAME}"), "w") as f:
             f.write(json.dumps(metadata))
 

@@ -33,6 +33,7 @@ class cellpose(ImageOperation):
             f"channel_{self.channel}",
             f"cellpose_model_{self.model}"
         )
+        os.umask(settings.UMASK)
         if not os.path.exists(self.chunks_folder):
             os.makedirs(self.chunks_folder)
         if not os.path.exists(self.jobs_folder):
@@ -98,7 +99,7 @@ class cellpose(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"cpu_array_all_chunks.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
-        nice_value = settings.PRIORITY_TO_NICE_MAP_GPU[self.priority]
+        # nice_value = settings.PRIORITY_TO_NICE_MAP_GPU[self.priority]
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
@@ -114,7 +115,7 @@ class cellpose(ImageOperation):
             f.write(' ')
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {nice_value}')
+            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {self.priority}')
             f.write('\n')
 
         # run it on compute (cpu) partition

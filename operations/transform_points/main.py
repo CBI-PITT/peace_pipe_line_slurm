@@ -25,6 +25,7 @@ class transform_points(ImageOperation):
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.channel}",
         )
+        os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.results_folder):

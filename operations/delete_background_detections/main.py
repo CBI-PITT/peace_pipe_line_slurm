@@ -29,6 +29,7 @@ class delete_background_detections(ImageOperation):
             f'channel_{self.channel}',
             f"cleaned_bg_{os.path.basename(self.points).replace('.csv', '')}"
         )
+        os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.save_folder):

@@ -1,13 +1,22 @@
 # conda activate omehans-reader
 import os
 import sys
-
-print("COMPUTER", os.uname().nodename)
+from pathlib import Path
 
 import tifffile
 import zarr
 from dask import array as da
 from stack_to_multiscale_ngff.h5_nested_store3 import H5_Nested_Store
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 input_dir = sys.argv[1]

@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import uuid
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -11,6 +12,16 @@ from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 from cellfinder.analyse.analyse import transform_points_to_downsampled_space
 from cellfinder.main import get_downsampled_space
 from imlib.IO.cells import get_cells
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 def transform_points_downsampled_to_atlas_space(
@@ -64,7 +75,7 @@ registration_data = json.load(open(registration_json, 'r'))
 atlas = BrainGlobeAtlas(registration_data['atlas'])
 
 source_space = bgs.AnatomicalSpace(
-    options['orientation'],
+    registration_data['orientation'],
     shape=options['shape'],
     resolution=options['resolution'],
 )

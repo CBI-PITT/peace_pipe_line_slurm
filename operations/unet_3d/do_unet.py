@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -8,10 +9,16 @@ import numpy as np
 from torchvision.transforms import functional as F
 import torch.nn.functional as G
 from torchvision.transforms import ToTensor
-# from skimage import measure
-# import pandas as pd
 
-# from analysis import settings
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 input_file = sys.argv[1]

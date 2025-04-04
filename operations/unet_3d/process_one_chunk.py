@@ -11,17 +11,17 @@ import dask.array as da
 from imaris_ims_file_reader import ims
 import tifffile
 
+from pathlib import Path
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
 
-INFO_FILE_NAME = "dataset_info.json"
-PRIORITY_TO_NICE_MAP_GPU = {
-    '0': 1000000,  # priority 1 for GPU;       priority 1 for compute n24 mem64
-    '1': 129000,   # priority 18 for GPU;
-    '2': 125000,   # priority 4018 for GPU;
-    '3': 120000,   # priority 9018 for GPU;
-    '4': 110000,   # priority 19018 for GPU;
-    '5': 100000,    # priority 29018 for GPU;   priority 1 for compute n24 mem64
-    '1313': 0
-}
+from analysis import settings
+from utils.slurm import submit_slurm_job
+
+os.umask(settings.UMASK)
 
 
 def extract_chunk_from_imaris_by_number(number):
@@ -108,17 +108,24 @@ def write_detection_task_for_slurm(chunk_number, output_path):
 
 
 def submit_slurm_task_gpu(path_to_task):
-    nice_value = PRIORITY_TO_NICE_MAP_GPU[priority]
-    command = [
-        'sbatch',
-        '-p', 'gpu',
-        '--gres=gpu:1',
-        '--mem=64Gb',
-        '-n8',
-        f'--nice={nice_value}',
-        path_to_task
-    ]
-    subprocess.run(command)
+    submit_slurm_job(
+        path_to_task,
+        partition=settings.SLURM_PARTITION_GPU,
+        needs_gpu=True,
+        cores=8,
+        memory=64,
+        priority=priority
+    )
+    # command = [
+    #     'sbatch',
+    #     '-p', 'gpu',
+    #     '--gres=gpu:1',
+    #     '--mem=64Gb',
+    #     '-n8',
+    #     f'--nice={nice_value}',
+    #     path_to_task
+    # ]
+    # subprocess.run(command)
 
 
 def segment_one_chunk(chunk_number):
@@ -175,7 +182,7 @@ model = sys.argv[6]
 username = sys.argv[7]
 priority = sys.argv[8]
 
-metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
 
 jobs_folder = os.path.join(OUTPUT_DIR, "unet_3d", "slurm_jobs")
@@ -190,6 +197,6 @@ CHUNKS_FOLDER = os.path.join(OUTPUT_DIR, "chunks")
 segmentation_folder = os.path.join(OUTPUT_DIR, f"model_{os.path.basename(model)}", "segmentation")
 if not os.path.exists(segmentation_folder):
     os.makedirs(segmentation_folder)
-    os.chmod(segmentation_folder, 0o774)
+    # os.chmod(segmentation_folder, 0o774)
 
 extract_detect_delete(int(chunk_number))

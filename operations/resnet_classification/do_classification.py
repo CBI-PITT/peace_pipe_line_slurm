@@ -8,16 +8,16 @@ import time
 import numpy as np
 import pandas as pd
 
+from pathlib import Path
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
 
-PRIORITY_TO_NICE_MAP_GPU = {
-    '0': 1000000,  # priority 1 for GPU;       priority 1 for compute n24 mem64
-    '1': 129000,   # priority 18 for GPU;
-    '2': 125000,   # priority 4018 for GPU;
-    '3': 120000,   # priority 9018 for GPU;
-    '4': 110000,   # priority 19018 for GPU;
-    '5': 100000,    # priority 29018 for GPU;   priority 1 for compute n24 mem64
-    '1313': 0
-}
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 input_dir = sys.argv[1]
@@ -122,12 +122,12 @@ z_center_max = z_layers - cube_shape2[0] + cube_shape2[0] // 2
 ## run on GPU partition
 command = [
     'sbatch',
-    f'--array={z_center_min}-{z_center_max}',
+    f'--array={z_center_min}-{z_center_max}',  # TODO use submit_slurm_array
     '-p', 'gpu',
     '--gres=gpu:1',
     '--mem=64Gb',
     '-n8',
-    f'--nice={PRIORITY_TO_NICE_MAP_GPU[priority]}',
+    f'--nice={settings.PRIORITY_TO_NICE_MAP_GPU[priority]}',
     path_to_task
 ]
 subprocess.run(command)

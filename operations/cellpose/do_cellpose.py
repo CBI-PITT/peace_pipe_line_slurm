@@ -1,8 +1,19 @@
 import os
 import sys
+from pathlib import Path
 
 import tifffile
 from cellpose import models
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 input_file = sys.argv[1]

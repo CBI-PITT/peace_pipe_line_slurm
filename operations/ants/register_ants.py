@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from glob import glob
+from pathlib import Path
 
 import ants
 import dask
@@ -12,6 +13,16 @@ import bg_space as bgs
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from dask import array as da
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 input_folder = sys.argv[1]

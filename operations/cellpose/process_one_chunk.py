@@ -4,6 +4,7 @@ import subprocess
 import sys
 import traceback
 from glob import glob
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,17 @@ from imaris_ims_file_reader import ims
 import tifffile
 
 
-INFO_FILE_NAME = "dataset_info.json"
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+from utils.slurm import submit_slurm_job
+
+# INFO_FILE_NAME = settings.INFO_FILE_NAME
+os.umask(settings.UMASK)
 
 
 def extract_chunk_from_imaris_by_number(number):
@@ -99,16 +110,24 @@ def write_detection_task_for_slurm(chunk_number, output_path):
 
 
 def submit_slurm_task_gpu(path_to_task):
-    command = [
-        'sbatch',
-        '-p', 'gpu',  # TODO use settings
-        '--gres=gpu:1',
-        '--mem=64Gb',
-        '-n8',
-        f'--nice={nice_value}',
-        path_to_task
-    ]
-    subprocess.run(command)
+    submit_slurm_job(
+        path_to_task,
+        partition=settings.SLURM_PARTITION_GPU,
+        needs_gpu=True,
+        cores=8,
+        memory=64,
+        priority=priority
+    )
+    # command = [
+    #     'sbatch',
+    #     '-p', 'gpu',  # TODO use settings
+    #     '--gres=gpu:1',
+    #     '--mem=64Gb',
+    #     '-n8',
+    #     f'--nice={nice_value}',
+    #     path_to_task
+    # ]
+    # subprocess.run(command)
 
 
 def segment_one_chunk(chunk_number):
@@ -163,9 +182,9 @@ signal_channel = int(sys.argv[4])
 chunk_number = int(sys.argv[5])
 model = sys.argv[6]
 username = sys.argv[7]
-nice_value = sys.argv[8]
+priority = sys.argv[8]
 
-metadata = json.load(open(os.path.join(INPUT_DIR, f'.{INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
 
 print("source", source)
@@ -183,6 +202,6 @@ CHUNKS_FOLDER = os.path.join(OUTPUT_DIR, "chunks")
 segmentation_folder = os.path.join(OUTPUT_DIR, f"cellpose_model_{model}", "segmentation")
 if not os.path.exists(segmentation_folder):
     os.makedirs(segmentation_folder)
-    os.chmod(segmentation_folder, 0o774)
+    # os.chmod(segmentation_folder, 0o774)
 
 extract_detect_delete(int(chunk_number))

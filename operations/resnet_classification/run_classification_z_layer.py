@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from glob import glob
+from pathlib import Path
 
 import tifffile
 import numpy as np
@@ -11,6 +12,16 @@ from fastai.data.all import CategoryBlock, DataBlock, RandomSplitter, TensorImag
 from fastai.vision.all import vision_learner, resnet50
 from fastai.metrics import error_rate
 from imaris_ims_file_reader import ims
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 input_dir = sys.argv[1]

@@ -26,6 +26,7 @@ class rembg(ImageOperation):
             f'channel_{self.channel}',
             f"removed_background"
         )
+        os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.save_folder):

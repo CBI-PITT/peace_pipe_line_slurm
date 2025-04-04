@@ -30,7 +30,7 @@ class ilastik(ImageOperation):
             f"channel_{self.channel}",
             f"ilastik_model_{os.path.basename(self.model).replace('.ilp', '')}"
         )
-        # self.ims_file = ims(self.input)
+        os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.save_folder):

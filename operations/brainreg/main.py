@@ -49,7 +49,7 @@ class brainreg(ImageOperation):
             f"channel_{self.background_channel}",
             f"registration_{self.atlas}"
         )
-        # self.ims_file = ims(self.metadata['source'])
+        os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.registration_folder):

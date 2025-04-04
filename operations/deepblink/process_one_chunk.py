@@ -21,6 +21,8 @@ sys.path.append(str(project_root))
 from analysis import settings
 from utils.slurm import submit_slurm_job
 
+os.umask(settings.UMASK)
+
 
 DEEPBLINK_MODEL_PATH = settings.DEEPBLINK_MODEL_PATH
 INFO_FILE_NAME = settings.INFO_FILE_NAME
@@ -207,7 +209,6 @@ def run_dbscan_on_chunk(chunk_number):
 
     submit_slurm_job(
         path_to_task,
-        # partition=f'{settings.SLURM_PARTITION_CPU,settings.SLURM_PARTITION_HIGH_RAM}',
         partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
         cores=8,
         memory=32,
@@ -241,7 +242,7 @@ def extract_detect_deepblink_delete(number):
             print(f"EXCEPTION: unable to extract chunk # {number}")
             print(traceback.format_exc())
             save_empty_napari_df()
-            return
+            # return
         print("extracted")
     detections_file_name = os.path.join(detection_folder, f"chunk_{str(number).zfill(5)}.csv")
     if not os.path.exists(detections_file_name):
@@ -285,4 +286,11 @@ detection_folder = os.path.join(OUTPUT_DIR, "detection")
 napari_folder = os.path.join(OUTPUT_DIR, "detection_napari")
 dbscan_folder = os.path.join(OUTPUT_DIR, "dbscan")
 
-extract_detect_deepblink_delete(int(chunk_number))
+if with_dbscan:
+    dbscan_file_name = os.path.join(dbscan_folder, f"dbscan_napari_chunk_{str(chunk_number).zfill(5)}.csv")
+    if not os.path.exists(dbscan_file_name):
+        extract_detect_deepblink_delete(int(chunk_number))
+else:
+    napari_file_name = os.path.join(napari_folder, f"napari_chunk_{str(chunk_number).zfill(5)}.csv")
+    if not os.path.exists(napari_file_name):
+        extract_detect_deepblink_delete(int(chunk_number))

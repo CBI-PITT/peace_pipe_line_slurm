@@ -1,10 +1,21 @@
 import os
 import sys
+from pathlib import Path
 
 import dask
 import numpy as np
 import pandas as pd
 from sklearn.cluster import DBSCAN
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 def run_dbscan_on_df(df, eps, min_samples):

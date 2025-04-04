@@ -33,6 +33,7 @@ class unet_3d(ImageOperation):
             f"channel_{self.channel}",
             f"model_{os.path.basename(self.model)}"
         )
+        os.umask(settings.UMASK)
         if not os.path.exists(self.chunks_folder):
             os.makedirs(self.chunks_folder)
         if not os.path.exists(self.jobs_folder):

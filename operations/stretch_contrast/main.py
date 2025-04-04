@@ -29,7 +29,7 @@ class stretch_contrast(ImageOperation):
             f'channel_{self.channel}',
             "contrast_stretched"
         )
-        # self.ims_file = ims(self.input)
+        os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.save_folder):

@@ -1,10 +1,21 @@
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import tifffile
 from ilastik.experimental.api import from_project_file
 from xarray import DataArray
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 INPUT_DIR = sys.argv[1]

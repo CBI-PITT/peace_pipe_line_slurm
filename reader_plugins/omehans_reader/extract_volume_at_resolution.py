@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from pathlib import Path
 
 import tifffile
 import zarr
@@ -9,6 +10,16 @@ from dask import array as da
 from skimage import img_as_float32
 from skimage.transform import rescale
 from stack_to_multiscale_ngff.h5_nested_store3 import H5_Nested_Store
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 def extract_volume_at_resolution(channel=0, output_resolution=(100, 100, 100)):

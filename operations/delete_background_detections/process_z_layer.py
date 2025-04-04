@@ -2,13 +2,21 @@ import json
 import os
 import sys
 from glob import glob
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import tifffile
 
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
 
-INFO_FILE_NAME = "dataset_info.json"
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 def remove_background_detections(options):
@@ -87,7 +95,7 @@ z_layer = int(sys.argv[5])
 # print('MASKS_DIR', MASKS_DIR)
 # print('z_layer', z_layer)
 
-metadata = json.load(open(os.path.join(INPUT_TIFF_STACK_DIR, f'.{INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(INPUT_TIFF_STACK_DIR, f'.{setiings.INFO_FILE_NAME}'), 'r'))
 resolution_level = metadata['resolution_level']
 channel = metadata['channel']
 

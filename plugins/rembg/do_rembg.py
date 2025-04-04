@@ -1,10 +1,20 @@
 # conda activate rembg
 import os
-print("COMPUTER", os.uname().nodename)
 import sys
+from pathlib import Path
 
 import numpy as np
 import tifffile
+
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
 
 
 def run_rembg(image):

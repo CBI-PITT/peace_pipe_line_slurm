@@ -19,6 +19,7 @@ sys.path.append(str(project_root))
 from analysis import settings
 from utils.slurm import submit_slurm_array
 
+os.umask(settings.UMASK)
 
 CHUNK_SIZE = settings.DEEPBLINK_CHUNK_SIZE
 
@@ -192,8 +193,11 @@ while chunks_done < number_of_chunks:
     print(f"Chunks done: {chunks_done} of {number_of_chunks}")
     time.sleep(120)
     chunks_done = len(glob(os.path.join(napari_folder, "napari_chunk_*.csv")))
+
 # merge the dataframes with points for all chunks
-merge_df()
+merged_csv = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_df.csv')
+if not os.path.exists(merged_csv):
+    merge_df()
 
 if with_dbscan:
     chunks_done = len(glob(os.path.join(dbscan_folder, "dbscan_napari_chunk_*.csv")))
@@ -202,6 +206,8 @@ if with_dbscan:
         time.sleep(120)
         chunks_done = len(glob(os.path.join(dbscan_folder, "dbscan_napari_chunk_*.csv")))
     # merge the DBSCAN dataframes with points for all chunks
-    merge_dbscan_df()
+    merged_dbscan_csv = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_dbscan_df.csv')
+    if not os.path.exists(merged_dbscan_csv):
+        merge_dbscan_df()
 
 print("All done!")

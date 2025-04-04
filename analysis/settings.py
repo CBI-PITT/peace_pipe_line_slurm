@@ -39,6 +39,9 @@ PRIORITY_TO_NICE_MAP_COMPUTE = {
 
 TIFF_TILE_SIZE = (512, 512)
 
+# UMASK = 0o002  # system mask for setting file and folder permissions (rw-rw-r--)
+UMASK = 0o006  # system mask for setting file and folder permissions (rw-rw----)
+
 ALLEN_RESOLUTION = 10
 CELLFINDER_SOMA_DIAMETER = 10
 CELLFINDER_THRESHOLD = 6

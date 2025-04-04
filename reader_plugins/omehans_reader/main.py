@@ -28,6 +28,7 @@ class omehans_reader(ImageReader):
             f'channel_{self.channel}'
         )
         self.volume_100um_location = os.path.join(self.output, os.path.basename(self.input) + settings.SUFFIX_100UM_VOLUME)
+        os.umask(0o002)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.extracted_tiffs_folder):
