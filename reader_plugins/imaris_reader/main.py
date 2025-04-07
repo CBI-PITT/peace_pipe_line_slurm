@@ -21,6 +21,7 @@ class imaris_reader(ImageReader):
         self.channel = int(kwargs.get('channel', 0))
         self.all_channels = int(kwargs.get('all_channels', False))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
+        self.compress = int(kwargs.get('compress', False))
         self.ims_file = ims(self.input)
         self.channels = self.ims_file.Channels
         self.jobs_folder = os.path.join(self.output, "slurm_jobs")
@@ -93,6 +94,8 @@ class imaris_reader(ImageReader):
             f.write(str(self.channel))
             f.write(' ')
             f.write('$SLURM_ARRAY_TASK_ID')
+            f.write(' ')
+            f.write(str(self.compress))
             f.write('\n')
 
         submit_slurm_array(
@@ -142,6 +145,8 @@ class imaris_reader(ImageReader):
                 f.write(str(channel))
                 f.write(' ')
                 f.write('$SLURM_ARRAY_TASK_ID')
+                f.write(' ')
+                f.write(str(self.compress))
                 f.write('\n')
 
             submit_slurm_array(

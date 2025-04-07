@@ -21,6 +21,7 @@ OUTPUT_DIR = sys.argv[2]
 resolution_level = sys.argv[3]
 channel = sys.argv[4]
 z = sys.argv[5]
+compress = int(sys.argv[6])
 
 print("IMS_FILE_PATH", IMS_FILE_PATH)
 print("OUTPUT_DIR", OUTPUT_DIR)
@@ -44,4 +45,7 @@ try:
 except:
     pass
 
-tifffile.imwrite(full_output_path, plane, tile=(512, 512), compression="zlib")
+if compress:
+    tifffile.imwrite(full_output_path, plane, tile=(512, 512), compression="zlib")
+else:
+    tifffile.imwrite(full_output_path, plane)
