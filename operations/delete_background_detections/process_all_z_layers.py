@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -16,7 +17,7 @@ project_root = operations_folder.parent
 sys.path.append(str(project_root))
 
 from analysis import settings
-from utils.slurm import submit_slurm_array
+from utils.slurm import split_slurm_array, submit_slurm_array
 
 os.umask(settings.UMASK)
 
@@ -33,7 +34,7 @@ def launch_job_array():
         f.write('\n')
         f.write(f"#SBATCH -J {username}-delete-bg-detections")
         f.write('\n')
-        f.write(f"#SBATCH -o {jobs_folder}/delete_bg_detections_%j.out")
+        f.write(f"#SBATCH -o {jobs_folder}/slurm_delete_bg_detections_%A_%a.out")
         f.write('\n')
         f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate peace")
@@ -51,24 +52,32 @@ def launch_job_array():
         f.write('$SLURM_ARRAY_TASK_ID')
         f.write('\n')
 
-    submit_slurm_array(
-        path_to_task,
-        z_layers,
-        partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-        cores=12,
-        memory=32,
-        priority=priority
+    already_done = glob(os.path.join(OUTPUT_DIR, "*.csv"))
+    if len(already_done):
+        print("Partially processed")
+        print("Processed", len(already_done), "of", z_layers)
+        files = os.listdir(self.save_folder)
+        pattern = "_z(\d+)\.csv"
+        numbers = [re.findall(pattern, x)[0] for x in files]
+        numbers = set(map(int, numbers))
+        split_slurm_array(
+            path_to_task,
+            z_layers,
+            numbers,
+            partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+            cores=12,
+            memory=32,
+            priority=priority
+        )
+    else:
+        submit_slurm_array(
+            path_to_task,
+            z_layers,
+            partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+            cores=12,
+            memory=32,
+            priority=priority
     )
-    # command = [
-    #     'sbatch',
-    #     f'--array=0-{z_layers - 1}',
-    #     '-p', f'compute,gpu',
-    #     '--mem=32Gb',
-    #     '-n12',
-    #     f'--nice={nice_value}',
-    #     path_to_task
-    # ]
-    # subprocess.run(command)
 
 
 def merge_df():
@@ -84,7 +93,7 @@ def merge_df():
         df = pd.concat([df, chunk_df])
 
     print("Saving df")
-    df.to_csv(os.path.join(str(Path(OUTPUT_DIR).parent), 'cleaned_bg_merged_df.csv'))
+    df.to_csv(os.path.join(str(Path(OUTPUT_DIR).parent), f'{os.path.basename(OUTPUT_DIR)}.csv'))
 
 
 INPUT_TIFF_STACK_DIR = sys.argv[1]

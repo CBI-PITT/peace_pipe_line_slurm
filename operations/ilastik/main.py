@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import time
 from glob import glob
@@ -8,7 +9,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
-from utils.slurm import submit_slurm_array
+from utils.slurm import submit_slurm_array, split_slurm_array
 
 
 class ilastik(ImageOperation):
@@ -61,7 +62,7 @@ class ilastik(ImageOperation):
             f.write('\n')
             f.write(f"#SBATCH -J {self.user}-ilastik")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_ilastik_%A_%a.out")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate ilastik")
@@ -81,21 +82,29 @@ class ilastik(ImageOperation):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
-        submit_slurm_array(
-            path_to_task,
-            z_layers,
-            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            cores=12,
-            memory=32,
-            priority=self.priority
-        )
-        # command = [
-        #     'sbatch',
-        #     f'--array=0-{z_layers-1}',
-        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-        #     '--mem=32Gb',
-        #     '-n12',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
+        already_done = glob(os.path.join(self.save_folder, "*.tif"))
+        if len(already_done):
+            print("Partially processed")
+            print("Processed", len(already_done), "of", z_layers)
+            files = os.listdir(self.save_folder)
+            pattern = "_z(\d+)\.tif"
+            numbers = [re.findall(pattern, x)[0] for x in files]
+            numbers = set(map(int, numbers))
+            split_slurm_array(
+                path_to_task,
+                z_layers,
+                numbers,
+                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                cores=12,
+                memory=32,
+                priority=self.priority
+            )
+        else:
+            submit_slurm_array(
+                path_to_task,
+                z_layers,
+                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                cores=12,
+                memory=32,
+                priority=self.priority
+            )

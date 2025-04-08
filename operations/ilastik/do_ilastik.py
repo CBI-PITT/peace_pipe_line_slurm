@@ -56,6 +56,9 @@ output_file = os.path.join(
     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
 )
 
+if os.path.exists(output_file):
+    sys.exit(0)
+
 print("Running ilastik")
 img = tifffile.imread(input_file)
 try:

@@ -95,7 +95,7 @@ z_layer = int(sys.argv[5])
 # print('MASKS_DIR', MASKS_DIR)
 # print('z_layer', z_layer)
 
-metadata = json.load(open(os.path.join(INPUT_TIFF_STACK_DIR, f'.{setiings.INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(INPUT_TIFF_STACK_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
 resolution_level = metadata['resolution_level']
 channel = metadata['channel']
 

@@ -17,7 +17,7 @@ project_root = operations_folder.parent
 sys.path.append(str(project_root))
 
 from analysis import settings
-from utils.slurm import submit_slurm_array
+from utils.slurm import split_slurm_array, submit_slurm_array
 
 os.umask(settings.UMASK)
 
@@ -73,13 +73,13 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
     path_to_task = os.path.join(jobs_folder, f"cpu_array_all_chunks.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
-    # nice_value = settings.PRIORITY_TO_NICE_MAP_COMPUTE[priority]
+
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
         f.write(f"#SBATCH -J {username}-deepblink-cpu")
         f.write('\n')
-        f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
+        f.write(f"#SBATCH -o {jobs_folder}/slurm_deepblink_cpu_%A_%a.out")
         f.write('\n')
         f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate peace")
@@ -92,24 +92,38 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         f.write(f'{resolution_level} {signal_channel} {username} {with_dbscan} {priority} $SLURM_ARRAY_TASK_ID')
         f.write('\n')
 
-    submit_slurm_array(
-        path_to_task,
-        number_of_chunks,
-        partition=f'{settings.SLURM_PARTITION_CPU}',
-        cores=12,
-        memory=32,
-        priority=priority
-    )
-    # command = [
-    #     'sbatch',
-    #     f'--array=0-{number_of_chunks}',
-    #     '-p', 'compute',
-    #     '--mem=32Gb',
-    #     '-n12',
-    #     f'--nice={nice_value}',
-    #     path_to_task
-    # ]
-    # subprocess.run(command)
+    if with_dbscan:
+        save_folder = dbscan_folder
+    else:
+        save_folder = napari_folder
+
+    already_done = glob(os.path.join(save_folder, "*.csv"))
+
+    if len(already_done):
+        print("Partially processed")
+        print("Processed", len(already_done), "of", number_of_chunks)
+        files = os.listdir(save_folder)
+        pattern = "_chunk_(\d+)\.csv"
+        numbers = [re.findall(pattern, x)[0] for x in files]
+        numbers = set(map(int, numbers))
+        split_slurm_array(
+            path_to_task,
+            number_of_chunks,
+            numbers,
+            partition=','.join([settings.SLURM_PARTITION_CPU]),
+            cores=12,
+            memory=32,
+            priority=priority
+        )
+    else:
+        submit_slurm_array(
+            path_to_task,
+            number_of_chunks,
+            partition=f'{settings.SLURM_PARTITION_CPU}',
+            cores=12,
+            memory=32,
+            priority=priority
+        )
 
 
 def merge_df():
