@@ -106,17 +106,6 @@ class imaris_reader(ImageReader):
             memory=32,
             priority=self.priority
         )
-        # nice_value = settings.PRIORITY_TO_NICE_MAP_COMPUTE[self.priority]
-        # command = [
-        #     'sbatch',
-        #     f'--array=0-{z_layers-1}',
-        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-        #     '--mem=32Gb',
-        #     '-n12',
-        #     f'--nice={nice_value}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
 
     def extract_tiff_series_all_channels(self):
         for channel in range(self.channels):
@@ -157,16 +146,6 @@ class imaris_reader(ImageReader):
                 memory=32,
                 priority=self.priority
             )
-            # command = [
-            #     'sbatch',
-            #     f'--array=0-{z_layers-1}',
-            #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            #     '--mem=32Gb',
-            #     '-n12',
-            #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            #     path_to_task
-            # ]
-            # subprocess.run(command)
 
     def initialize_info_file(self):
         orientation = guess_orientation(self.ims_file, save_100um_volume=True, out_dir=self.output)
@@ -189,7 +168,18 @@ class imaris_reader(ImageReader):
             "shape": self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3:],
             "resolution_level": self.resolution_level,
             "full_resolution": self.ims_file.resolution,
-            "full_shape": self.ims_file.shape
+            "full_shape": self.ims_file.shape,
+            "input": {
+                "type": "ims",
+                "path": self.ims_file.filePathComplete
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.extracted_tiffs_folders
+            },
+            "process": {},
+            "base_output_dir": self.output,
+            "base_input_dir": ""
         }
         return options
 

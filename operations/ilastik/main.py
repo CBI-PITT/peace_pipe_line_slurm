@@ -16,6 +16,8 @@ class ilastik(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        if not self.output:
+            self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
@@ -39,18 +41,34 @@ class ilastik(ImageOperation):
 
     def run(self):
         print("Running ilastik")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.channel)
-        print("Resolution level", self.resolution_level)
-        # self.extract_tiff_series()  # extract tiff series in SLURM
-        # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
-        # extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        # while len(extracted_files) < z_layers:
-        #     extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        #     print(f"Extracted files: {len(extracted_files)} of {z_layers}")
-        #     time.sleep(10)
+        self.create_provenance()
         self.do_segmentation()
+
+    def create_provenance(self):
+        provenance = {
+            "input": {
+                "type": "tiff_series",  # input type
+                "path": self.input,
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.save_folder,
+            },
+            "process": {
+                "parameters": {
+                    "model_path": self.model,
+                }
+            },
+            "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": self.metadata['out_name'],
+            "base_input_dir": self.input
+        }
+        with open(
+                os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def do_segmentation(self):
         z_layers = self.metadata['shape'][-3]

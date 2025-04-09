@@ -12,15 +12,18 @@ from utils.slurm import submit_slurm_job
 class delete_background_detections(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
-        self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
-        self.channel = self.metadata['channel']
-        self.resolution_level = self.metadata['resolution_level']
-
         self.user = kwargs.get('user', 'lab')
         self.priority = kwargs.get('priority', '2')
         self.points = kwargs["cell_candidates_path"]
         self.masks = kwargs["fg_mask_path"]
-
+        if not self.input or not self.output:
+            provenance_path = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
+            provenance = json.load(open(provenance_path, 'r'))
+            self.input = provenance['base_input_dir']
+            self.output = provenance['base_output_dir']
+        self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.channel = self.metadata['channel']
+        self.resolution_level = self.metadata['resolution_level']
         self.output_operation_folder = os.path.join(self.output, 'delete_background_detections')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
         self.save_folder = os.path.join(
@@ -28,6 +31,12 @@ class delete_background_detections(ImageOperation):
             f'resolution_level_{self.resolution_level}',
             f'channel_{self.channel}',
             f"cleaned_bg_{os.path.basename(self.points).replace('.csv', '')}"
+        )
+        self.out_csv_path = os.path.join(
+            self.output_operation_folder,
+            f'resolution_level_{self.resolution_level}',
+            f'channel_{self.channel}',
+            f"cleaned_bg_{os.path.basename(self.points)}"
         )
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
@@ -37,10 +46,46 @@ class delete_background_detections(ImageOperation):
 
     def run(self):
         print("Running delete_background_detections")
-        # print("Input", self.input)
-        # print("Output", self.output)
-        # print("Points", self.points)
-        self.run_all_z_layers()
+        self.create_provenance()
+        if not os.path.exists(self.out_csv_path):
+            self.run_all_z_layers()
+        else:
+            print("Output CSV file already exists")
+
+    def create_provenance(self):
+        source = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
+        source_provenance = json.load(open(source, 'r'))
+        base_output_dir = source_provenance['base_output_dir']
+        base_input_dir = source_provenance['base_input_dir']
+        provenance = {
+            "input": [
+                {
+                    "type": "csv",  # input type
+                    "path": self.points,
+                },
+                {
+                    "type": "tiff_series",  # input type
+                    "path": self.masks,
+                }
+            ],
+            "output": {
+                "type": "csv",
+                "path": self.out_csv_path,
+            },
+            "process": {
+                "parameters": {
+                }
+            },
+            "source": source,  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": base_output_dir,
+            "base_input_dir": base_input_dir
+        }
+        with open(
+                os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def run_all_z_layers(self):
         path_to_task = os.path.join(self.jobs_folder, f"delete_background_detections_rl{self.resolution_level}_c{self.channel}.sh")
@@ -80,12 +125,3 @@ class delete_background_detections(ImageOperation):
             memory=32,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', f'{settings.SLURM_PARTITION_HIGH_RAM}',
-        #     '--mem=32Gb',
-        #     '-n12',
-        #     # f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
