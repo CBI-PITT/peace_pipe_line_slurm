@@ -57,6 +57,7 @@ class delete_background_detections(ImageOperation):
         source_provenance = json.load(open(source, 'r'))
         base_output_dir = source_provenance['base_output_dir']
         base_input_dir = source_provenance['base_input_dir']
+        sequence = ",".join([source_provenance.get("sequence", ""), "delete_background_detections"])
         provenance = {
             "input": [
                 {
@@ -80,7 +81,8 @@ class delete_background_detections(ImageOperation):
             "channel": self.channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": base_output_dir,
-            "base_input_dir": base_input_dir
+            "base_input_dir": base_input_dir,
+            "sequence": sequence
         }
         with open(
                 os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}'),

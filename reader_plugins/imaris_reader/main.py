@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import time
 from glob import glob
@@ -10,7 +11,7 @@ from analysis import settings
 from analysis.guess_background_channel import guess_background
 from analysis.guess_brain_orientation import guess_orientation
 from operations.base import ImageReader
-from utils.slurm import submit_slurm_array
+from utils.slurm import split_slurm_array, submit_slurm_array
 
 
 class imaris_reader(ImageReader):
@@ -98,14 +99,32 @@ class imaris_reader(ImageReader):
             f.write(str(self.compress))
             f.write('\n')
 
-        submit_slurm_array(
-            path_to_task,
-            z_layers,
-            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            cores=12,
-            memory=32,
-            priority=self.priority
-        )
+        already_done = glob(os.path.join(self.extracted_tiffs_folders[0], "*.tif"))
+        if len(already_done):
+            print("Partially processed")
+            print("Processed", len(already_done), "of", z_layers)
+            files = os.listdir(self.extracted_tiffs_folders[0])
+            pattern = "_z(\d+)\.tif"
+            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
+            numbers = set(map(int, numbers))
+            split_slurm_array(
+                path_to_task,
+                z_layers,
+                numbers,
+                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                cores=12,
+                memory=32,
+                priority=self.priority
+            )
+        else:
+            submit_slurm_array(
+                path_to_task,
+                z_layers,
+                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                cores=12,
+                memory=32,
+                priority=self.priority
+            )
 
     def extract_tiff_series_all_channels(self):
         for channel in range(self.channels):
@@ -138,14 +157,32 @@ class imaris_reader(ImageReader):
                 f.write(str(self.compress))
                 f.write('\n')
 
-            submit_slurm_array(
-                path_to_task,
-                z_layers,
-                partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-                cores=12,
-                memory=32,
-                priority=self.priority
-            )
+            already_done = glob(os.path.join(self.extracted_tiffs_folders[channel], "*.tif"))
+            if len(already_done):
+                print("Partially processed")
+                print("Processed", len(already_done), "of", z_layers)
+                files = os.listdir(self.extracted_tiffs_folders[channel])
+                pattern = "_z(\d+)\.tif"
+                numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
+                numbers = set(map(int, numbers))
+                split_slurm_array(
+                    path_to_task,
+                    z_layers,
+                    numbers,
+                    partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                    cores=12,
+                    memory=32,
+                    priority=self.priority
+                )
+            else:
+                submit_slurm_array(
+                    path_to_task,
+                    z_layers,
+                    partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                    cores=12,
+                    memory=32,
+                    priority=self.priority
+                )
 
     def initialize_info_file(self):
         orientation = guess_orientation(self.ims_file, save_100um_volume=True, out_dir=self.output)
@@ -179,7 +216,8 @@ class imaris_reader(ImageReader):
             },
             "process": {},
             "base_output_dir": self.output,
-            "base_input_dir": ""
+            "base_input_dir": "",
+            "sequence": "imaris_reader"
         }
         return options
 

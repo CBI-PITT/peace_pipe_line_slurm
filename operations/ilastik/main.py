@@ -45,6 +45,7 @@ class ilastik(ImageOperation):
         self.do_segmentation()
 
     def create_provenance(self):
+        sequence = ",".join([self.metadata.get('sequence', ''), 'ilastik'])
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -63,7 +64,8 @@ class ilastik(ImageOperation):
             "channel": self.channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": self.metadata['out_name'],
-            "base_input_dir": self.input
+            "base_input_dir": self.input,
+            "sequence": sequence
         }
         with open(
                 os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
@@ -106,7 +108,7 @@ class ilastik(ImageOperation):
             print("Processed", len(already_done), "of", z_layers)
             files = os.listdir(self.save_folder)
             pattern = "_z(\d+)\.tif"
-            numbers = [re.findall(pattern, x)[0] for x in files]
+            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
             numbers = set(map(int, numbers))
             split_slurm_array(
                 path_to_task,

@@ -90,6 +90,7 @@ class deepblink(ImageOperation):
         )
 
     def create_provenance(self):
+        sequence = ",".join([self.metadata.get("sequence", ""), "deepblink"])
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -108,7 +109,8 @@ class deepblink(ImageOperation):
             "channel": self.signal_channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": self.metadata['out_name'],
-            "base_input_dir": self.input
+            "base_input_dir": self.input,
+            "sequence": sequence
         }
         with open(
                 os.path.join(

@@ -70,7 +70,8 @@ def split_range_in_subranges(n, existing_outputs):
     subranges = []
     start = None
 
-    for i in range(n + 1):
+    for i in range(n):
+    # for i in range(n + 1):
         if i not in existing_set:
             if start is None:
                 start = i

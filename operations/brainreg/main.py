@@ -45,11 +45,16 @@ class brainreg(ImageOperation):
 
         self.output_operation_folder = os.path.join(self.output, 'brainreg')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        if self.metadata.get('sequence'):
+            previous_operations = self.metadata['sequence'].split(',')
+            previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
+        else:
+            previous_operation = ""
         self.registration_folder = os.path.join(
             self.output_operation_folder,
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.background_channel}",
-            f"registration_{self.atlas}"
+            f"registration_{self.atlas}{previous_operation}"
         )
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
@@ -63,6 +68,7 @@ class brainreg(ImageOperation):
         self.run_registration()  # run brainreg in SLURM
 
     def create_provenance(self):
+        sequence = ",".join([self.metadata.get('sequence', ""), 'brainreg'])
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -82,8 +88,9 @@ class brainreg(ImageOperation):
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
             "channel": self.background_channel,
             "resolution_level": self.resolution_level,
-            "base_output_dir": self.metadata['out_name'],
-            "base_input_dir": self.input
+            "base_output_dir": self.metadata.get('out_name', self.metadata['base_output_dir']),
+            "base_input_dir": self.input,
+            "sequence": sequence
         }
         with open(
                 os.path.join(self.registration_folder, f'.{settings.INFO_FILE_NAME}'),
