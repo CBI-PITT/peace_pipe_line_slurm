@@ -12,15 +12,17 @@ from utils.slurm import submit_slurm_job
 class resnet_classification(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "resnet_classification"
         self.user = kwargs.get('user', 'lab')
         self.priority = kwargs.get('priority', '2')
         self.cells = kwargs['cell_candidates_path']
         self.model_path = kwargs['model_path']
-        self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.metadata = json.load(open(os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.input = self.metadata['base_input_dir']
+        self.output = self.metadata['base_output_dir']
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
-
-        self.output_operation_folder = os.path.join(self.output, 'resnet_classification')
+        self.output_operation_folder = os.path.join(self.output, self.name)
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
         self.extracted_tiffs_folder = os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{self.channel}')
         self.save_folder = os.path.join(
@@ -28,6 +30,7 @@ class resnet_classification(ImageOperation):
             f'resolution_level_{self.resolution_level}',
             f'channel_{self.channel}',
         )
+        self.out_csv_path = os.path.join(self.save_folder, f'predicted_cells_{os.path.basename(self.model_path)}.csv')
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -36,11 +39,43 @@ class resnet_classification(ImageOperation):
 
     def run(self):
         print("Running ResNet classification")
-        print("Input", self.input)
-        print("Output", self.output)
-        print("Channel", self.channel)
-        print("Resolution level", self.resolution_level)
-        self.run_classification()
+        self.create_provenance()
+        if not os.path.exists(self.out_csv_path):
+            self.run_classification()
+        else:
+            print("Output CSV file already exists")
+
+    def create_provenance(self):
+        source = os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}')
+        source_provenance = json.load(open(source, 'r'))
+        base_output_dir = source_provenance['base_output_dir']
+        base_input_dir = source_provenance['base_input_dir']
+        sequence = ",".join([source_provenance.get("sequence", ""), self.name])
+        provenance = {
+            "input": {
+                "type": "csv",  # input type
+                "path": self.cells,
+            },
+            "output": {
+                "type": "csv",
+                "path": self.out_csv_path,
+            },
+            "process": {
+                "parameters": {
+                    "model": self.model_path
+                }
+            },
+            "source": source,  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": base_output_dir,
+            "base_input_dir": base_input_dir,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def run_classification(self):
         path_to_task = os.path.join(self.jobs_folder, f"resnet_main_cpu_rl{self.resolution_level}_c{self.channel}.sh")
@@ -78,12 +113,3 @@ class resnet_classification(ImageOperation):
             memory=64,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', settings.SLURM_PARTITION_CPU,
-        #     '--mem=64Gb',
-        #     '-n24',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)

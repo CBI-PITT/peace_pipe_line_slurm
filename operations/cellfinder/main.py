@@ -25,19 +25,26 @@ class cellfinder(ImageOperation):
     """
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "cellfinder"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
         self.priority = kwargs.get('priority', '2')
-        self.output_operation_folder = os.path.join(self.output, 'cellfinder')
+        self.output_operation_folder = os.path.join(self.output, self.name)
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        if self.metadata.get('sequence'):
+            previous_operations = self.metadata['sequence'].split(',')
+            previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
+        else:
+            previous_operation = ""
         self.detection_folder = os.path.join(
             self.output_operation_folder,
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.signal_channel}",
-            f"cellfinder_output"
+            f"cellfinder_output{previous_operation}"
         )
+        self.out_csv_path = os.path.join(self.detection_folder, "points", "cells.xml")
         self.resolution = self.metadata['resolution']
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
@@ -50,7 +57,41 @@ class cellfinder(ImageOperation):
         # print("Input", self.input)
         # print("Output", self.output)
         # print("Channel", self.signal_channel)
-        self.run_detection()  # run cellfinder in SLURM
+        self.create_provenance()
+        if not os.path.exists(self.out_csv_path):
+            self.run_detection()  # run cellfinder in SLURM
+        else:
+            print("Output file already exists")
+
+    def create_provenance(self):
+        sequence = ",".join([self.metadata.get("sequence", ""), self.name])
+        provenance = {
+            "input": {
+                "type": "tiff_series",  # input type
+                "path": self.input,
+            },
+            "output": {
+                "type": "csv",
+                "path": self.out_csv_path,
+            },
+            "process": {
+                "parameters": {
+                }
+            },
+            "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
+            "channel": self.signal_channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": self.metadata.get('out_name', self.metadata["base_output_dir"]),
+            "base_input_dir": self.input,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(
+                    self.detection_folder,
+                    f'.{settings.INFO_FILE_NAME}'
+                ),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def run_detection(self):
         path_to_task = os.path.join(self.jobs_folder, f"cellfinder_rl{self.resolution_level}_c{self.signal_channel}.sh")
@@ -59,7 +100,7 @@ class cellfinder(ImageOperation):
             # f.write('ulimit -n 600000')
             # f.write('\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-cellfinder")
+            f.write(f"#SBATCH -J {self.user}-{self.name}")
             f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
@@ -85,13 +126,3 @@ class cellfinder(ImageOperation):
             memory=64,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', settings.SLURM_PARTITION_HIGH_RAM,
-        #     '--mem=64Gb',
-        #     '-n8',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
-
