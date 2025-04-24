@@ -12,6 +12,7 @@ from utils.slurm import submit_slurm_job
 class dbscan(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "dbscan"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
@@ -21,7 +22,7 @@ class dbscan(ImageOperation):
         self.points = kwargs["cell_candidates_path"]
         self.epsilon = int(kwargs.get("epsilon", 3))
         self.min_samples = int(kwargs.get("min_samples", 2))
-        self.output_operation_folder = os.path.join(self.output, 'dbscan')
+        self.output_operation_folder = os.path.join(self.output, self.name)
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
         self.save_folder = os.path.join(
             self.output_operation_folder,
@@ -29,6 +30,7 @@ class dbscan(ImageOperation):
             f'channel_{self.channel}',
             f"dbscan_epsilon_{self.epsilon}_minsamples_{self.min_samples}"
         )
+        self.out_csv_path = os.path.join(save_folder, f"dbscan_{os.path.basename(self.points)}")
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -37,10 +39,42 @@ class dbscan(ImageOperation):
 
     def run(self):
         print("Running DBSCAN")
-        # print("Input", self.input)
-        # print("Output", self.output)
-        # print("Points", self.points)
-        self.run_dbscan()
+        self.create_provenance()
+        if not os.path.exists(self.out_csv_path):
+            self.run_dbscan()
+        else:
+            print("Output CSV file already exists")
+
+    def create_provenance(self):
+        source = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
+        source_provenance = json.load(open(source, 'r'))
+        base_output_dir = source_provenance['base_output_dir']
+        base_input_dir = source_provenance['base_input_dir']
+        sequence = ",".join([source_provenance.get("sequence", ""), self.name])
+        provenance = {
+            "input": {
+                "type": "csv",  # input type
+                "path": self.points,
+            },
+            "output": {
+                "type": "csv",
+                "path": self.out_csv_path,
+            },
+            "process": {
+                "parameters": {
+                }
+            },
+            "source": source,  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": base_output_dir,
+            "base_input_dir": base_input_dir,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def run_dbscan(self):
         path_to_task = os.path.join(self.jobs_folder, f"dbscan_{self.epsilon}_{self.min_samples}.sh")
@@ -74,12 +108,3 @@ class dbscan(ImageOperation):
             memory=256,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', settings.SLURM_PARTITION_HIGH_RAM,
-        #     '--mem=256Gb',
-        #     '-n24',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)

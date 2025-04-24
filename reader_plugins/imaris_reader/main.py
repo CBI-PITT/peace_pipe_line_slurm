@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import time
 from glob import glob
@@ -10,7 +11,7 @@ from analysis import settings
 from analysis.guess_background_channel import guess_background
 from analysis.guess_brain_orientation import guess_orientation
 from operations.base import ImageReader
-from utils.slurm import submit_slurm_array
+from utils.slurm import split_slurm_array, submit_slurm_array
 
 
 class imaris_reader(ImageReader):
@@ -98,25 +99,32 @@ class imaris_reader(ImageReader):
             f.write(str(self.compress))
             f.write('\n')
 
-        submit_slurm_array(
-            path_to_task,
-            z_layers,
-            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            cores=12,
-            memory=32,
-            priority=self.priority
-        )
-        # nice_value = settings.PRIORITY_TO_NICE_MAP_COMPUTE[self.priority]
-        # command = [
-        #     'sbatch',
-        #     f'--array=0-{z_layers-1}',
-        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-        #     '--mem=32Gb',
-        #     '-n12',
-        #     f'--nice={nice_value}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
+        already_done = glob(os.path.join(self.extracted_tiffs_folders[0], "*.tif"))
+        if len(already_done):
+            print("Partially processed")
+            print("Processed", len(already_done), "of", z_layers)
+            files = os.listdir(self.extracted_tiffs_folders[0])
+            pattern = "_z(\d+)\.tif"
+            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
+            numbers = set(map(int, numbers))
+            split_slurm_array(
+                path_to_task,
+                z_layers,
+                numbers,
+                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                cores=12,
+                memory=32,
+                priority=self.priority
+            )
+        else:
+            submit_slurm_array(
+                path_to_task,
+                z_layers,
+                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                cores=12,
+                memory=32,
+                priority=self.priority
+            )
 
     def extract_tiff_series_all_channels(self):
         for channel in range(self.channels):
@@ -149,24 +157,32 @@ class imaris_reader(ImageReader):
                 f.write(str(self.compress))
                 f.write('\n')
 
-            submit_slurm_array(
-                path_to_task,
-                z_layers,
-                partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-                cores=12,
-                memory=32,
-                priority=self.priority
-            )
-            # command = [
-            #     'sbatch',
-            #     f'--array=0-{z_layers-1}',
-            #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-            #     '--mem=32Gb',
-            #     '-n12',
-            #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-            #     path_to_task
-            # ]
-            # subprocess.run(command)
+            already_done = glob(os.path.join(self.extracted_tiffs_folders[channel], "*.tif"))
+            if len(already_done):
+                print("Partially processed")
+                print("Processed", len(already_done), "of", z_layers)
+                files = os.listdir(self.extracted_tiffs_folders[channel])
+                pattern = "_z(\d+)\.tif"
+                numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
+                numbers = set(map(int, numbers))
+                split_slurm_array(
+                    path_to_task,
+                    z_layers,
+                    numbers,
+                    partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                    cores=12,
+                    memory=32,
+                    priority=self.priority
+                )
+            else:
+                submit_slurm_array(
+                    path_to_task,
+                    z_layers,
+                    partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+                    cores=12,
+                    memory=32,
+                    priority=self.priority
+                )
 
     def initialize_info_file(self):
         orientation = guess_orientation(self.ims_file, save_100um_volume=True, out_dir=self.output)
@@ -189,7 +205,19 @@ class imaris_reader(ImageReader):
             "shape": self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3:],
             "resolution_level": self.resolution_level,
             "full_resolution": self.ims_file.resolution,
-            "full_shape": self.ims_file.shape
+            "full_shape": self.ims_file.shape,
+            "input": {
+                "type": "ims",
+                "path": self.ims_file.filePathComplete
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.extracted_tiffs_folders
+            },
+            "process": {},
+            "base_output_dir": self.output,
+            "base_input_dir": "",
+            "sequence": "imaris_reader"
         }
         return options
 

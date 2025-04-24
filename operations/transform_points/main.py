@@ -10,14 +10,19 @@ from utils.slurm import submit_slurm_job
 class transform_points(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.registration_path = kwargs.get('registration_path')  # path to folder
+        self.cells_path = kwargs.get('cells_path')  # CSV
+        if not self.input or not self.output:
+            provenance_path = os.path.join(os.path.dirname(self.cells_path), f'.{settings.INFO_FILE_NAME}')
+            provenance = json.load(open(provenance_path, 'r'))
+            self.input = provenance['base_input_dir']
+            self.output = provenance['base_output_dir']
         self.metadata_path = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
         self.metadata = json.load(open(self.metadata_path, 'r'))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
         self.priority = kwargs.get('priority', '2')
-        self.registration_path = kwargs.get('registration_path')  # path to folder
-        self.cells_path = kwargs.get('cells_path')  # CSV
         self.output_operation_folder = os.path.join(self.output, 'transform_points')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
         self.results_folder = os.path.join(
@@ -25,6 +30,7 @@ class transform_points(ImageOperation):
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.channel}",
         )
+        self.out_csv_path = os.path.join(self.results_folder, f"{os.path.basename(self.cells_path.replace('.csv', ''))}_for_dashboard.csv")
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -32,7 +38,47 @@ class transform_points(ImageOperation):
             os.makedirs(self.results_folder)
 
     def run(self):
-        self.get_df()
+        if not os.path.exists(self.out_csv_path):
+            self.get_df()
+        else:
+            print("Output CSV file already exists")
+
+    def create_provenance(self):
+        source = os.path.join(os.path.dirname(self.cells_path), f'.{settings.INFO_FILE_NAME}')
+        source_provenance = json.load(open(source, 'r'))
+        base_output_dir = source_provenance['base_output_dir']
+        base_input_dir = source_provenance['base_input_dir']
+        sequence = ",".join([self.metadata.get('sequence', ''), 'transform_points'])
+        provenance = {
+            "input": [
+                {
+                    "type": "csv",
+                    "path": self.cells_path,
+                },
+                {
+                    "type": "folder",
+                    "path": self.registration_path,
+                }
+            ],
+            "output": {
+                "type": "csv",
+                "path": self.out_csv_path,
+            },
+            "process": {
+                "parameters": {
+                }
+            },
+            "source": source,  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": base_output_dir,
+            "base_input_dir": base_input_dir,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def get_df(self):
         path_to_task = os.path.join(self.jobs_folder, f"transform_points.sh")
@@ -66,12 +112,3 @@ class transform_points(ImageOperation):
             memory=128,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', settings.SLURM_PARTITION_HIGH_RAM,
-        #     '--mem=128Gb',
-        #     '-n8',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)

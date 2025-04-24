@@ -114,9 +114,9 @@ def start_pipeline_slurm(settings_file_path):
     INPUT = json_settings.get('input')
     OUTPUT = json_settings.get('output')
     OPERATION = json_settings.get('operation')
-    if not INPUT or not OUTPUT or not OPERATION:
-        log.exception("Fields 'input', 'output' and 'operation' are required in the JSON")
-        return
+    # if not INPUT or not OUTPUT or not OPERATION:
+    #     log.exception("Fields 'input', 'output' and 'operation' are required in the JSON")
+    #     return
     EXTRAS = json_settings.get('extras', {})
     if type(EXTRAS) != dict:
         log.exception("Field 'extras' needs to be a mapping/dictionary")

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 from glob import glob
 
@@ -7,6 +8,7 @@ from imaris_ims_file_reader import ims
 
 from operations.base import ImageOperation
 from analysis import settings
+from utils.slurm import split_slurm_array, submit_slurm_array
 
 
 class rembg(ImageOperation):
@@ -20,11 +22,16 @@ class rembg(ImageOperation):
 
         self.output_operation_folder = os.path.join(self.output, 'rembg')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        if self.metadata.get('sequence'):
+            previous_operations = self.metadata['sequence'].split(',')
+            previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
+        else:
+            previous_operation = ""
         self.save_folder = os.path.join(
             self.output_operation_folder,
             f'resolution_level_{self.resolution_level}',
             f'channel_{self.channel}',
-            f"removed_background"
+            f"removed_background{previous_operation}"
         )
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
@@ -34,14 +41,42 @@ class rembg(ImageOperation):
 
     def run(self):
         print("Running rembg")
-        # self.extract_tiff_series()  # extract tiff series in SLURM
-        # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
-        # extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        # while len(extracted_files) < z_layers:
-        #     extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        #     print(f"Extracted files: {len(extracted_files)} of {z_layers}")
-        #     time.sleep(10)
+        self.create_provenance()
         self.run_rembg()
+
+    def create_provenance(self):
+        source = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
+        source_provenance = json.load(open(source, 'r'))
+        base_output_dir = source_provenance['base_output_dir']
+        base_input_dir = source_provenance['base_input_dir']
+        sequence = ",".join([source_provenance.get("sequence", ""), "rembg"])
+        provenance = {
+            "input": {
+                "type": "tiff_series",
+                "path": self.input,
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.save_folder,
+            },
+            "process": {
+                "parameters": {
+                }
+            },
+            "source": source,  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "resolution": source_provenance['resolution'],
+            "shape": source_provenance['shape'],
+            "orientation": source_provenance['orientation'],
+            "base_output_dir": base_output_dir,
+            "base_input_dir": base_input_dir,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def run_rembg(self):
         z_layers = self.metadata['shape'][-3]
@@ -71,17 +106,31 @@ class rembg(ImageOperation):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
-        #### run it on compute (cpu) partition
-        nice_value = settings.PRIORITY_TO_NICE_MAP_COMPUTE[self.priority]
-        command = [
-            'sbatch',
-            f'--array=0-{z_layers-1}',
-            '--export=OMP_NUM_THREADS=12',
-            '-p', settings.SLURM_PARTITION_CPU,
-            '--mem=32Gb',
-            '-n12',
-            f'--nice={nice_value}',
-            path_to_task
-        ]
-        subprocess.run(command)
-
+        already_done = glob(os.path.join(self.save_folder, "*.tif"))
+        if len(already_done):
+            print("Partially processed")
+            print("Processed", len(already_done), "of", z_layers)
+            files = os.listdir(self.save_folder)
+            pattern = "_z(\d+)\.tif"
+            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
+            numbers = set(map(int, numbers))
+            split_slurm_array(
+                path_to_task,
+                z_layers,
+                numbers,
+                partition=settings.SLURM_PARTITION_CPU,
+                cores=12,
+                memory=32,
+                priority=self.priority,
+                extra_args={'--export': 'OMP_NUM_THREADS=12'}
+            )
+        else:
+            submit_slurm_array(
+                path_to_task,
+                z_layers,
+                partition=settings.SLURM_PARTITION_CPU,
+                cores=12,
+                memory=32,
+                priority=self.priority,
+                extra_args={'--export': 'OMP_NUM_THREADS=12'}
+            )

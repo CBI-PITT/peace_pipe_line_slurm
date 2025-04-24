@@ -25,7 +25,7 @@ def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8,
     subprocess.run(command)
 
 
-def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0):
+def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
     if needs_gpu:
         nice = PRIORITY_TO_NICE_MAP_GPU[priority]
     else:
@@ -39,13 +39,16 @@ def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU,
         '--gres=gpu:1' if needs_gpu and partition == SLURM_PARTITION_GPU else ''
         f'--mem={memory}Gb',
         f'-n{cores}',
-        f'--nice={nice}',
-        job_path
+        f'--nice={nice}'
     ]
+    if extra_args and type(extra_args) is dict:
+        for k, v in extra_args.items():
+            command.append(f"{k}={v}")
+    command.append(job_path)
     subprocess.run(command)
 
 
-def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0):
+def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
     if needs_gpu:
         nice = PRIORITY_TO_NICE_MAP_GPU[priority]
     else:
@@ -59,9 +62,12 @@ def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM
         '--gres=gpu:1' if needs_gpu and partition == SLURM_PARTITION_GPU else ''
         f'--mem={memory}Gb',
         f'-n{cores}',
-        f'--nice={nice}',
-        job_path
+        f'--nice={nice}'
     ]
+    if extra_args and type(extra_args) is dict:
+        for k, v in extra_args.items():
+            command.append(f"{k}={v}")
+    command.append(job_path)
     subprocess.run(command)
 
 
@@ -70,7 +76,8 @@ def split_range_in_subranges(n, existing_outputs):
     subranges = []
     start = None
 
-    for i in range(n + 1):
+    for i in range(n):
+    # for i in range(n + 1):
         if i not in existing_set:
             if start is None:
                 start = i
@@ -83,7 +90,7 @@ def split_range_in_subranges(n, existing_outputs):
     return subranges
 
 
-def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0):
+def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
     subranges = split_range_in_subranges(number_of_tasks, existing_outputs)
     for start, end in subranges:
         submit_partial_slurm_array(
@@ -94,5 +101,6 @@ def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLU
             cores=cores,
             memory=memory,
             needs_gpu=needs_gpu,
-            priority=priority
+            priority=priority,
+            extra_args=extra_args
         )

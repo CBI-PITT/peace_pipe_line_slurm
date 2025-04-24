@@ -1,23 +1,10 @@
 import json
 import os
-# import re
 import subprocess
-# import time
-# from glob import glob
-# from pathlib import Path
-
-# from imaris_ims_file_reader import ims
-# import numpy as np
-# import pandas as pd
-# import dask
-# import dask.array as da
 
 from ..base import ImageOperation
 from analysis import settings
 from utils.slurm import submit_slurm_job
-
-
-# CHUNK_SIZE = (40, 1700, 3500)
 
 
 class deepblink(ImageOperation):
@@ -37,6 +24,8 @@ class deepblink(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        if not self.output:
+            self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', 'lab')
@@ -47,6 +36,8 @@ class deepblink(ImageOperation):
         self.jobs_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "slurm_jobs")
         self.detection_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "detection")
         self.napari_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "detection_napari")
+        self.out_csv_name = "merged_dbscan_df.csv" if self.with_dbscan else "merged_df.csv"
+        self.out_csv_path = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", self.out_csv_name)
         os.umask(settings.UMASK)
         if not os.path.exists(self.chunks_folder):
             os.makedirs(self.chunks_folder)
@@ -62,18 +53,11 @@ class deepblink(ImageOperation):
 
     def run(self):
         print("Running deepblink in chunks")
-        self.run_all()
-        # number_of_chunks = self.get_chunking()
-        # print("number of chunks", number_of_chunks)
-        # self.submit_detection_cpu_slurm_array(number_of_chunks)
-        # # wait for all GPU jobs to finish
-        # chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
-        # while chunks_done < number_of_chunks:  # TODO: should be a separate task
-        #     print(f"Chunks done: {chunks_done} of {number_of_chunks}")
-        #     time.sleep(120)
-        #     chunks_done = len(glob(os.path.join(self.napari_folder, "napari_chunk_*.csv")))
-        # # merge the dataframes with points for all chunks
-        # self.merge_df()
+        self.create_provenance()
+        if not os.path.exists(self.out_csv_path):
+            self.run_all()
+        else:
+            print("Output CSV file already exists")
 
     def run_all(self):
         path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
@@ -104,15 +88,39 @@ class deepblink(ImageOperation):
             memory=128,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', settings.SLURM_PARTITION_HIGH_RAM,
-        #     '--mem=128Gb',
-        #     '-n8',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
+
+    def create_provenance(self):
+        sequence = ",".join([self.metadata.get("sequence", ""), "deepblink"])
+        provenance = {
+            "input": {
+                "type": "tiff_series",  # input type
+                "path": self.input,
+            },
+            "output": {
+                "type": "csv",
+                "path": self.out_csv_path,
+            },
+            "process": {
+                "parameters": {
+                    "with_dbscan": self.with_dbscan,
+                }
+            },
+            "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
+            "channel": self.signal_channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": self.metadata['out_name'],
+            "base_input_dir": self.input,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(
+                    self.output,
+                    f'resolution_level_{self.resolution_level}',
+                    f"channel_{self.signal_channel}",
+                    f'.{settings.INFO_FILE_NAME}'
+                ),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
 
     # def get_chunking(self):

@@ -17,6 +17,7 @@ CHUNK_SIZE = settings.DEEPBLINK_CHUNK_SIZE
 class cellpose(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = 'cellpose'
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
@@ -24,7 +25,7 @@ class cellpose(ImageOperation):
         self.priority = kwargs.get('priority', '2')
         self.model = kwargs.get('model', 'general')
 
-        self.output_operation_folder = os.path.join(self.output, 'cellpose')
+        self.output_operation_folder = os.path.join(self.output, self.name)
         self.chunks_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.channel}", "chunks")
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
         self.save_folder = os.path.join(
@@ -43,13 +44,38 @@ class cellpose(ImageOperation):
 
     def run(self):
         print("Running cellpose in chunks")
-        # print("Input", self.input)
-        # print("Output", self.output)
-        # print("Channel", self.channel)
-        # print("Resolution level", self.resolution_level)
+        self.create_provenance()
         number_of_chunks = self.get_chunking()
         # print("number of chunks", number_of_chunks)
         self.submit_detection_cpu_slurm_array(number_of_chunks)
+
+    def create_provenance(self):
+        sequence = ",".join([self.metadata.get('sequence', ''), self.name])
+        provenance = {
+            "input": {
+                "type": "tiff_series",  # input type
+                "path": self.input,
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.save_folder,
+            },
+            "process": {
+                "parameters": {
+                    "model_path": self.model,
+                }
+            },
+            "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": self.metadata['out_name'],
+            "base_input_dir": self.input,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def get_chunking(self):
         tiff_stack_shape = self.metadata['shape']
@@ -127,13 +153,3 @@ class cellpose(ImageOperation):
             memory=32,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     f'--array=0-{number_of_chunks}',
-        #     '-p', settings.SLURM_PARTITION_CPU,
-        #     '--mem=32Gb',
-        #     '-n12',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)

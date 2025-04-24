@@ -32,6 +32,8 @@ class brainreg(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        if not self.output:
+            self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
         self.background_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.resolution = self.metadata['resolution']
@@ -43,11 +45,16 @@ class brainreg(ImageOperation):
 
         self.output_operation_folder = os.path.join(self.output, 'brainreg')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        if self.metadata.get('sequence'):
+            previous_operations = self.metadata['sequence'].split(',')
+            previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
+        else:
+            previous_operation = ""
         self.registration_folder = os.path.join(
             self.output_operation_folder,
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.background_channel}",
-            f"registration_{self.atlas}"
+            f"registration_{self.atlas}{previous_operation}"
         )
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
@@ -57,19 +64,38 @@ class brainreg(ImageOperation):
 
     def run(self):
         print("Running brainreg")
-        # print("Input", self.input)
-        # print("Output", self.output)
-        # print("Channel", self.background_channel)
-        # print("Atlas", self.atlas)
-        # self.calculate_resolution_level()    # calculate resolution level based on atlas
-        # self.extract_tiff_series()    # extract tiff series in SLURM
-        # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.background_channel, 'shape')][-3]
-        # extracted_files = glob(os.path.join(self.output_operation_folder, f'resolution_level_{self.resolution_level}', f'channel_{self.background_channel}', "*.tif"))
-        # while len(extracted_files) < z_layers:
-        #     extracted_files = glob(os.path.join(self.output_operation_folder, f'resolution_level_{self.resolution_level}', f'channel_{self.background_channel}', "*.tif"))
-        #     print(f"Extracted files: {len(extracted_files)} of {z_layers}")
-        #     time.sleep(10)
+        self.create_provenance()
         self.run_registration()  # run brainreg in SLURM
+
+    def create_provenance(self):
+        sequence = ",".join([self.metadata.get('sequence', ""), 'brainreg'])
+        provenance = {
+            "input": {
+                "type": "tiff_series",  # input type
+                "path": self.input,
+            },
+            "output": {
+                "type": "folder",
+                "path": self.registration_folder,
+            },
+            "process": {
+                "parameters": {
+                    "atlas": self.atlas,
+                    "orientation": self.orientation,
+                    "brain_geometry": self.brain_geometry
+                }
+            },
+            "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
+            "channel": self.background_channel,
+            "resolution_level": self.resolution_level,
+            "base_output_dir": self.metadata.get('out_name', self.metadata['base_output_dir']),
+            "base_input_dir": self.input,
+            "sequence": sequence
+        }
+        with open(
+                os.path.join(self.registration_folder, f'.{settings.INFO_FILE_NAME}'),
+                "w") as f:
+            f.write(json.dumps(provenance))
 
     def calculate_resolution_level(self):
         atlas = BrainGlobeAtlas(self.atlas)
@@ -116,12 +142,3 @@ class brainreg(ImageOperation):
             memory=64,
             priority=self.priority
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-        #     '--mem=64Gb',
-        #     '-n24',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
