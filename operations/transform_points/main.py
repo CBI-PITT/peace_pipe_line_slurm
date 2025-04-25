@@ -31,6 +31,8 @@ class transform_points(ImageOperation):
             f"channel_{self.channel}",
         )
         self.out_csv_path = os.path.join(self.results_folder, f"{os.path.basename(self.cells_path.replace('.csv', ''))}_for_dashboard.csv")
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("Prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -38,10 +40,13 @@ class transform_points(ImageOperation):
             os.makedirs(self.results_folder)
 
     def run(self):
+        provenance_file_path = self.create_provenance()
+        job_ids = []
         if not os.path.exists(self.out_csv_path):
-            self.get_df()
+            job_ids = self.get_df()
         else:
             print("Output CSV file already exists")
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         source = os.path.join(os.path.dirname(self.cells_path), f'.{settings.INFO_FILE_NAME}')
@@ -75,10 +80,10 @@ class transform_points(ImageOperation):
             "base_input_dir": base_input_dir,
             "sequence": sequence
         }
-        with open(
-                os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def get_df(self):
         path_to_task = os.path.join(self.jobs_folder, f"transform_points.sh")
@@ -105,10 +110,16 @@ class transform_points(ImageOperation):
             f.write(self.metadata_path if ' ' not in self.metadata_path else f'"{self.metadata_path}"')
             f.write('\n')
 
-        submit_slurm_job(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+
+        job_ids = submit_slurm_job(
             path_to_task,
             partition=settings.SLURM_PARTITION_HIGH_RAM,
             cores=8,
             memory=128,
-            priority=self.priority
+            priority=self.priority,
+            extra_args=extra_args
         )
+        return job_ids

@@ -42,6 +42,8 @@ class brainreg(ImageOperation):
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', self.metadata['orientation'])
         self.brain_geometry = kwargs.get('brain_geometry', "full")
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("Brainreg prerequisites", self.prerequisites)
 
         self.output_operation_folder = os.path.join(self.output, 'brainreg')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
@@ -64,8 +66,9 @@ class brainreg(ImageOperation):
 
     def run(self):
         print("Running brainreg")
-        self.create_provenance()
-        self.run_registration()  # run brainreg in SLURM
+        provenance_file_path = self.create_provenance()
+        job_ids = self.run_registration()  # run brainreg in SLURM
+        return provenance_file_path, job_ids  # return path to provenance and submitted job IDs
 
     def create_provenance(self):
         sequence = ",".join([self.metadata.get('sequence', ""), 'brainreg'])
@@ -92,10 +95,10 @@ class brainreg(ImageOperation):
             "base_input_dir": self.input,
             "sequence": sequence
         }
-        with open(
-                os.path.join(self.registration_folder, f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(self.registration_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def calculate_resolution_level(self):
         atlas = BrainGlobeAtlas(self.atlas)
@@ -135,10 +138,16 @@ class brainreg(ImageOperation):
             f.write('\n')
 
         print("Starting registration...")
-        submit_slurm_job(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+
+        job_ids = submit_slurm_job(
             path_to_task,
-            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            partition=settings.SLURM_PARTITION_HIGH_RAM,
             cores=24,
-            memory=64,
-            priority=self.priority
+            memory=128,
+            priority=self.priority,
+            extra_args=extra_args
         )
+        return job_ids

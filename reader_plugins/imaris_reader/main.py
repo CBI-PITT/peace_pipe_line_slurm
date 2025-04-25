@@ -48,6 +48,7 @@ class imaris_reader(ImageReader):
         metadata = self.initialize_info_file()
         with open(os.path.join(self.output, f'resolution_level_{self.resolution_level}', settings.INFO_FILE_NAME), "w") as f:
             f.write(json.dumps(metadata))
+        job_ids = []
         if self.all_channels:
             for channel in range(self.channels):
                 metadata['channel'] = channel
@@ -58,16 +59,12 @@ class imaris_reader(ImageReader):
             metadata['channel'] = self.channel
             with open(os.path.join(self.extracted_tiffs_folders[0], f".{settings.INFO_FILE_NAME}"), "w") as f:
                 f.write(json.dumps(metadata))
-            # extract tiff series in SLURM
-            self.extract_tiff_series()
+                f.close()
+            job_ids = self.extract_tiff_series()
+            with open(os.path.join(self.extracted_tiffs_folders[0], f".{settings.JOBS_FILE_NAME}"), "w") as f:
+                f.write(json.dumps(job_ids))
 
-        # # check extraction progress
-        # z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
-        # extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        # while len(extracted_files) < z_layers:
-        #     extracted_files = glob(os.path.join(self.extracted_tiffs_folder, "*.tif"))
-        #     print(f"Extracted files: {len(extracted_files)} of {z_layers}")
-        #     time.sleep(10)
+        return os.path.join(self.extracted_tiffs_folders[0], f".{settings.INFO_FILE_NAME}"), job_ids  # return path to provenance and job ids
 
     def extract_tiff_series(self):
         z_layers = self.ims_file.metaData[(self.resolution_level, 0, self.channel, 'shape')][-3]
@@ -107,7 +104,7 @@ class imaris_reader(ImageReader):
             pattern = "_z(\d+)\.tif"
             numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
             numbers = set(map(int, numbers))
-            split_slurm_array(
+            job_ids = split_slurm_array(
                 path_to_task,
                 z_layers,
                 numbers,
@@ -117,7 +114,7 @@ class imaris_reader(ImageReader):
                 priority=self.priority
             )
         else:
-            submit_slurm_array(
+            job_ids = submit_slurm_array(
                 path_to_task,
                 z_layers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
@@ -125,6 +122,7 @@ class imaris_reader(ImageReader):
                 memory=32,
                 priority=self.priority
             )
+        return job_ids
 
     def extract_tiff_series_all_channels(self):
         for channel in range(self.channels):
@@ -212,7 +210,7 @@ class imaris_reader(ImageReader):
             },
             "output": {
                 "type": "tiff_series",
-                "path": self.extracted_tiffs_folders
+                "path": self.extracted_tiffs_folders[0]
             },
             "process": {},
             "base_output_dir": self.output,

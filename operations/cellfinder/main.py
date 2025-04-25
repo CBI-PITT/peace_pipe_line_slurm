@@ -46,6 +46,8 @@ class cellfinder(ImageOperation):
         )
         self.out_csv_path = os.path.join(self.detection_folder, "points", "cells.xml")
         self.resolution = self.metadata['resolution']
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("Cellfinder prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -54,14 +56,13 @@ class cellfinder(ImageOperation):
 
     def run(self):
         print("Running cellfinder")
-        # print("Input", self.input)
-        # print("Output", self.output)
-        # print("Channel", self.signal_channel)
-        self.create_provenance()
+        provenance_file_path = self.create_provenance()
+        job_ids = []
         if not os.path.exists(self.out_csv_path):
-            self.run_detection()  # run cellfinder in SLURM
+            job_ids = self.run_detection()  # run cellfinder in SLURM
         else:
             print("Output file already exists")
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         sequence = ",".join([self.metadata.get("sequence", ""), self.name])
@@ -85,13 +86,10 @@ class cellfinder(ImageOperation):
             "base_input_dir": self.input,
             "sequence": sequence
         }
-        with open(
-                os.path.join(
-                    self.detection_folder,
-                    f'.{settings.INFO_FILE_NAME}'
-                ),
-                "w") as f:
+        provenance_file_path = os.path.join(self.detection_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def run_detection(self):
         path_to_task = os.path.join(self.jobs_folder, f"cellfinder_rl{self.resolution_level}_c{self.signal_channel}.sh")
@@ -119,10 +117,16 @@ class cellfinder(ImageOperation):
             f.write('\n')
 
         print("Starting cellfinder detection...")
-        submit_slurm_job(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+
+        job_ids = submit_slurm_job(
             path_to_task,
             partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
             cores=8,
             memory=64,
-            priority=self.priority
+            priority=self.priority,
+            extra_args=extra_args
         )
+        return job_ids

@@ -34,6 +34,8 @@ class cellpose(ImageOperation):
             f"channel_{self.channel}",
             f"cellpose_model_{self.model}"
         )
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("Cellpose prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.chunks_folder):
             os.makedirs(self.chunks_folder)
@@ -44,10 +46,11 @@ class cellpose(ImageOperation):
 
     def run(self):
         print("Running cellpose in chunks")
-        self.create_provenance()
+        provenance_file_path = self.create_provenance()
         number_of_chunks = self.get_chunking()
-        # print("number of chunks", number_of_chunks)
-        self.submit_detection_cpu_slurm_array(number_of_chunks)
+        print("number of chunks", number_of_chunks)
+        job_ids = self.submit_detection_cpu_slurm_array(number_of_chunks)
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         sequence = ",".join([self.metadata.get('sequence', ''), self.name])
@@ -72,10 +75,10 @@ class cellpose(ImageOperation):
             "base_input_dir": self.input,
             "sequence": sequence
         }
-        with open(
-                os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def get_chunking(self):
         tiff_stack_shape = self.metadata['shape']
@@ -144,12 +147,17 @@ class cellpose(ImageOperation):
             f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {self.priority}')
             f.write('\n')
 
-        # run it on compute (cpu) partition
-        submit_slurm_array(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+
+        job_ids = submit_slurm_array(
             path_to_task,
             number_of_chunks,
             partition=f'{settings.SLURM_PARTITION_CPU}',
             cores=12,
             memory=32,
-            priority=self.priority
+            priority=self.priority,
+            extra_args=extra_args
         )
+        return job_ids

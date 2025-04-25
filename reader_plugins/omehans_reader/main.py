@@ -16,6 +16,7 @@ from utils.slurm import submit_slurm_array, submit_slurm_job
 class omehans_reader(ImageReader):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = 'omehans_reader'
         self.channel = int(kwargs.get('channel', 0))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
         self.user = kwargs.get('user', 'lab')
@@ -28,7 +29,8 @@ class omehans_reader(ImageReader):
             f'channel_{self.channel}'
         )
         self.volume_100um_location = os.path.join(self.output, os.path.basename(self.input) + settings.SUFFIX_100UM_VOLUME)
-        os.umask(0o002)
+        self.prerequisites = kwargs.get('prerequisites', [])
+        os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.extracted_tiffs_folder):
@@ -42,8 +44,9 @@ class omehans_reader(ImageReader):
         metadata['channel'] = self.channel
         with open(os.path.join(self.extracted_tiffs_folder, f".{settings.INFO_FILE_NAME}"), "w") as f:
             f.write(json.dumps(metadata))
-        self.extract_tiff_series()
-        self.update_metadata()
+        job_ids = self.extract_tiff_series()
+        job_ids.extend(self.update_metadata())
+        return os.path.join(self.extracted_tiffs_folder, f".{settings.INFO_FILE_NAME}"), job_ids
         # check extraction progress
         # array_metadata = json.load(open(os.path.join(self.input, f"scale{self.resolution_level}", '.zarray'), 'r'))
         # z_layers = array_metadata['shape'][-3]
@@ -62,7 +65,7 @@ class omehans_reader(ImageReader):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-omehans-reader")
+            f.write(f"#SBATCH -J {self.user}-{self.name}")
             f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
@@ -82,24 +85,20 @@ class omehans_reader(ImageReader):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
-        submit_slurm_array(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+
+        job_ids = submit_slurm_array(
             path_to_task,
             z_layers,
             partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
             cores=12,
             memory=32,
-            priority=self.priority
+            priority=self.priority,
+            extra_args=extra_args
         )
-        # command = [
-        #     'sbatch',
-        #     f'--array=0-{z_layers-1}',
-        #     '-p', f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
-        #     '--mem=32Gb',
-        #     '-n12',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
+        return job_ids
 
     def initialize_info_file(self):
         metadata = json.load(open(os.path.join(self.input, '.zattrs'), 'r'))
@@ -120,7 +119,19 @@ class omehans_reader(ImageReader):
             "shape": array_metadata['shape'][-3:],
             "resolution_level": int(self.resolution_level),
             "full_resolution": metadata['multiscales'][0]['datasets'][0]['coordinateTransformations'][0]['scale'],
-            "full_shape": full_resolution_metadata['shape']
+            "full_shape": full_resolution_metadata['shape'],
+            "input": {
+                "type": "omehans",
+                "path": self.input
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.extracted_tiffs_folder
+            },
+            "process": {},
+            "base_output_dir": self.output,
+            "base_input_dir": "",
+            "sequence": self.name
         }
         return options
 
@@ -150,22 +161,18 @@ class omehans_reader(ImageReader):
             f.write(str(self.channel))
             f.write('\n')
 
-        submit_slurm_job(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+
+        job_ids = submit_slurm_job(
             path_to_task,
             partition=f'{settings.SLURM_PARTITION_CPU}',
             cores=4,
             memory=32,
-            priority=self.priority
+            priority=self.priority,
+            extra_args=extra_args
         )
-        # command = [
-        #     'sbatch',
-        #     '-p', settings.SLURM_PARTITION_CPU,
-        #     '--mem=32Gb',
-        #     '-n12',
-        #     f'--nice={settings.SLURM_JOBS_NICE_LEVEL}',
-        #     path_to_task
-        # ]
-        # subprocess.run(command)
 
         while True:
             try:
@@ -184,3 +191,5 @@ class omehans_reader(ImageReader):
         metadata['channel'] = self.channel
         with open(os.path.join(self.extracted_tiffs_folder, f".{settings.INFO_FILE_NAME}"), "w") as f:
             f.write(json.dumps(metadata))
+
+        return job_ids

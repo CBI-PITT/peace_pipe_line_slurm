@@ -11,8 +11,8 @@ from analysis import settings
 class tiff_series_reader(ImageReader):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
-        if not self.output:
-            self.output = self.input
+        self.name = "tiff_series_reader"
+        self.output = self.input
         self.channel = 0
         self.resolution_level = 0
         self.resolution_z = float(kwargs.get('resolution_z', 1))  # um
@@ -25,8 +25,10 @@ class tiff_series_reader(ImageReader):
         metadata = self.initialize_info_file()
         metadata['channel'] = self.channel
         os.umask(settings.UMASK)
-        with open(os.path.join(self.output, f".{settings.INFO_FILE_NAME}"), "w") as f:
+        provenance_file_path = os.path.join(self.output, f".{settings.INFO_FILE_NAME}")
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(metadata))
+        return provenance_file_path, []
 
     def initialize_info_file(self):
         imgs = glob(os.path.join(self.input, "*.tif*"))
@@ -43,6 +45,18 @@ class tiff_series_reader(ImageReader):
             "shape": [z, y, x],
             "resolution_level": self.resolution_level,
             "full_resolution": [self.resolution_z, self.resolution_y, self.resolution_x],
-            "full_shape": [z, y, x]
+            "full_shape": [z, y, x],
+            "input": {
+                "type": "tiff_series",
+                "path": self.input
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.input
+            },
+            "process": {},
+            "base_output_dir": os.path.dirname(self.input),
+            "base_input_dir": "",
+            "sequence": self.name
         }
         return options

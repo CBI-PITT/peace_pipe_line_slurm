@@ -31,6 +31,8 @@ class dbscan(ImageOperation):
             f"dbscan_epsilon_{self.epsilon}_minsamples_{self.min_samples}"
         )
         self.out_csv_path = os.path.join(save_folder, f"dbscan_{os.path.basename(self.points)}")
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("DBSCAN prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -39,11 +41,13 @@ class dbscan(ImageOperation):
 
     def run(self):
         print("Running DBSCAN")
-        self.create_provenance()
+        provenance_file_path = self.create_provenance()
+        job_ids = []
         if not os.path.exists(self.out_csv_path):
-            self.run_dbscan()
+            job_ids = self.run_dbscan()
         else:
             print("Output CSV file already exists")
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         source = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
@@ -71,10 +75,10 @@ class dbscan(ImageOperation):
             "base_input_dir": base_input_dir,
             "sequence": sequence
         }
-        with open(
-                os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def run_dbscan(self):
         path_to_task = os.path.join(self.jobs_folder, f"dbscan_{self.epsilon}_{self.min_samples}.sh")
@@ -101,10 +105,16 @@ class dbscan(ImageOperation):
             f.write(str(self.min_samples))
             f.write('\n')
 
-        submit_slurm_job(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+
+        job_ids = submit_slurm_job(
             path_to_task,
             partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
             cores=24,
             memory=256,
-            priority=self.priority
+            priority=self.priority,
+            extra_args=extra_args
         )
+        return job_ids

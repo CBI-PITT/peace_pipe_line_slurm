@@ -26,13 +26,14 @@ class ilastik(ImageOperation):
 
         self.output_operation_folder = os.path.join(self.output, 'ilastik')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
-        # self.extracted_tiffs_folder = os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{self.channel}')
         self.save_folder = os.path.join(
             self.output_operation_folder,
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.channel}",
             f"ilastik_model_{os.path.basename(self.model).replace('.ilp', '')}"
         )
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("Ilastik prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -41,8 +42,9 @@ class ilastik(ImageOperation):
 
     def run(self):
         print("Running ilastik")
-        self.create_provenance()
-        self.do_segmentation()
+        provenance_file_path = self.create_provenance()
+        job_ids = self.do_segmentation()
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         sequence = ",".join([self.metadata.get('sequence', ''), 'ilastik'])
@@ -67,10 +69,10 @@ class ilastik(ImageOperation):
             "base_input_dir": self.input,
             "sequence": sequence
         }
-        with open(
-                os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def do_segmentation(self):
         z_layers = self.metadata['shape'][-3]
@@ -102,6 +104,9 @@ class ilastik(ImageOperation):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
         already_done = glob(os.path.join(self.save_folder, "*.tif"))
         if len(already_done):
             print("Partially processed")
@@ -110,21 +115,24 @@ class ilastik(ImageOperation):
             pattern = "_z(\d+)\.tif"
             numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
             numbers = set(map(int, numbers))
-            split_slurm_array(
+            job_ids = split_slurm_array(
                 path_to_task,
                 z_layers,
                 numbers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
                 cores=12,
                 memory=32,
-                priority=self.priority
+                priority=self.priority,
+                extra_args=extra_args
             )
         else:
-            submit_slurm_array(
+            job_ids = submit_slurm_array(
                 path_to_task,
                 z_layers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
                 cores=12,
                 memory=32,
-                priority=self.priority
+                priority=self.priority,
+                extra_args=extra_args
             )
+        return job_ids
