@@ -150,6 +150,7 @@ class cellpose(ImageOperation):
         extra_args = {}
         if self.prerequisites:
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
 
         job_ids = submit_slurm_array(
             path_to_task,

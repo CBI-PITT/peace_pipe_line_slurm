@@ -107,6 +107,8 @@ class ilastik(ImageOperation):
         extra_args = {}
         if self.prerequisites:
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
+
         already_done = glob(os.path.join(self.save_folder, "*.tif"))
         if len(already_done):
             print("Partially processed")

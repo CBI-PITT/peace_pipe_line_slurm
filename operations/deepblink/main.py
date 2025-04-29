@@ -88,6 +88,7 @@ class deepblink(ImageOperation):
         extra_args = {}
         if self.prerequisites:
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
 
         job_ids = submit_slurm_job(
             path_to_task,
@@ -118,12 +119,12 @@ class deepblink(ImageOperation):
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
             "channel": self.signal_channel,
             "resolution_level": self.resolution_level,
-            "base_output_dir": self.metadata['out_name'],
+            "base_output_dir": self.metadata.get('base_output_dir', self.metadata['out_name']),
             "base_input_dir": self.input,
             "sequence": sequence
         }
         provenance_file_path = os.path.join(
-            self.output,
+            self.output_operation_folder,
             f'resolution_level_{self.resolution_level}',
             f"channel_{self.signal_channel}",
             f'.{settings.INFO_FILE_NAME}'

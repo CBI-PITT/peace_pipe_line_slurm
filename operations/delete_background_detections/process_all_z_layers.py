@@ -56,7 +56,7 @@ def launch_job_array():
     if len(already_done):
         print("Partially processed")
         print("Processed", len(already_done), "of", z_layers)
-        files = os.listdir(self.save_folder)
+        files = os.listdir(OUTPUT_DIR)
         pattern = "_z(\d+)\.csv"
         numbers = [re.findall(pattern, x)[0] for x in files]
         numbers = set(map(int, numbers))
