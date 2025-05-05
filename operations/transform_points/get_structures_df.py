@@ -240,5 +240,5 @@ df = df.astype(
      "atlas_structure_acronym": str,
      "atlas_structure_number": int} #, "metadata": int}
 )
-df.to_csv(output_csv_file_path)
+df.to_csv(output_csv_file_path, index=False)
 print('DataFrame saved as', output_csv_file_path)

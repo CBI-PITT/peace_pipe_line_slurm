@@ -93,7 +93,7 @@ def merge_df():
         df = pd.concat([df, chunk_df])
 
     print("Saving df")
-    df.to_csv(os.path.join(str(Path(OUTPUT_DIR).parent), f'{os.path.basename(OUTPUT_DIR)}.csv'))
+    df.to_csv(os.path.join(str(Path(OUTPUT_DIR).parent), f'{os.path.basename(OUTPUT_DIR)}.csv'), index=False)
 
 
 INPUT_TIFF_STACK_DIR = sys.argv[1]

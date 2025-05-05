@@ -152,7 +152,7 @@ def merge_df():
         df = pd.concat([df, chunk_df_corrected])
 
     print("Saving df")
-    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_df.csv'))
+    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_df.csv'), index=False)
 
 
 def merge_dbscan_df():
@@ -180,7 +180,7 @@ def merge_dbscan_df():
         df = pd.concat([df, chunk_df_corrected])
 
     print("Saving df")
-    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_dbscan_df.csv'))
+    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_dbscan_df.csv'), index=False)
 
 
 INPUT_DIR = sys.argv[1]

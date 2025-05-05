@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import sys
+import uuid
 
 import pandas as pd
 
@@ -50,7 +51,11 @@ if os.path.exists(output_file_name):
 df = pd.read_csv(cells_path)
 df_length = df.shape[0]
 
+dataset_uuid = uuid.uuid4()
+df['dataset_id'] = [dataset_uuid] * df_length
+
 for k, v in metadata_fields.items():
     df[k] = [v] * df_length
 
-df.to_csv(output_file_name)
+df.to_csv(output_file_name, index=False)
+print('DataFrame saved as', output_file_name)
