@@ -4,6 +4,7 @@ import subprocess
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -28,7 +29,7 @@ class deepblink(ImageOperation):
             self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.with_dbscan = kwargs.get('with_dbscan', False)
         self.output_operation_folder = os.path.join(self.output, 'deepblink')

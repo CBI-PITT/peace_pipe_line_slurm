@@ -9,6 +9,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import split_slurm_array, submit_slurm_array
 
 
@@ -18,8 +19,10 @@ class stretch_contrast(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
+        self.percentile_low = kwargs.get('percentile_low', 2)
+        self.percentile_high = kwargs.get('percentile_high', 98)
 
         self.output_operation_folder = os.path.join(self.output, 'stretch_contrast')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
@@ -28,7 +31,7 @@ class stretch_contrast(ImageOperation):
             self.output_operation_folder,
             f'resolution_level_{self.resolution_level}',
             f'channel_{self.channel}',
-            "contrast_stretched"
+            f"contrast_stretched_{self.percentile_low}_{self.percentile_high}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Contrast Stretch prerequisites", self.prerequisites)
@@ -104,6 +107,10 @@ class stretch_contrast(ImageOperation):
             f.write(str(self.channel))
             f.write(' ')
             f.write('$SLURM_ARRAY_TASK_ID')
+            f.write(' ')
+            f.write(str(self.percentile_low))
+            f.write(' ')
+            f.write(str(self.percentile_high))
             f.write('\n')
 
         extra_args = {}

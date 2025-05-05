@@ -4,6 +4,7 @@ import json
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -21,7 +22,7 @@ class transform_points(ImageOperation):
         self.metadata = json.load(open(self.metadata_path, 'r'))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.output_operation_folder = os.path.join(self.output, 'transform_points')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")

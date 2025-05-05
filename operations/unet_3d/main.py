@@ -8,6 +8,7 @@ import numpy as np
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_array
 
 
@@ -21,7 +22,7 @@ class unet_3d(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.model = kwargs.get('model')  # TODO: add default model
 

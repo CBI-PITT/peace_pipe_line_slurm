@@ -10,6 +10,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -37,7 +38,7 @@ class brainreg(ImageOperation):
         self.background_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.resolution = self.metadata['resolution']
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', self.metadata['orientation'])

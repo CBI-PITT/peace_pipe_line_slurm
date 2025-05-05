@@ -12,6 +12,7 @@ from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -35,7 +36,7 @@ class ants(ImageOperation):
         self.name = "ants"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.background_channel = int(self.metadata['channel'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', "sal")

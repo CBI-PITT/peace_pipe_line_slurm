@@ -8,6 +8,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -29,7 +30,7 @@ class cellfinder(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.signal_channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.output_operation_folder = os.path.join(self.output, self.name)
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")

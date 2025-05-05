@@ -6,6 +6,7 @@ from glob import glob
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -13,9 +14,14 @@ class resnet_classification(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
         self.name = "resnet_classification"
-        self.user = kwargs.get('user', 'lab')
-        self.priority = kwargs.get('priority', '2')
         self.cells = kwargs['cell_candidates_path']
+        if not self.input or not self.output:
+            provenance_path = os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}')
+            provenance = json.load(open(provenance_path, 'r'))
+            self.input = provenance['base_input_dir']
+            self.output = provenance['base_output_dir']
+        self.user = kwargs.get('user', get_user(self.input))
+        self.priority = kwargs.get('priority', '2')
         self.model_path = kwargs['model_path']
         self.metadata = json.load(open(os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.input = self.metadata['base_input_dir']

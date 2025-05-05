@@ -10,6 +10,7 @@ import tifffile
 from operations.base import ImageReader
 from analysis import settings
 from analysis.guess_brain_orientation import _guess_orientation
+from utils import get_user
 from utils.slurm import submit_slurm_array, submit_slurm_job
 
 
@@ -19,7 +20,7 @@ class omehans_reader(ImageReader):
         self.name = 'omehans_reader'
         self.channel = int(kwargs.get('channel', 0))
         self.resolution_level = int(kwargs.get('resolution_level', 0))
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
 
         self.jobs_folder = os.path.join(self.output, "slurm_jobs")

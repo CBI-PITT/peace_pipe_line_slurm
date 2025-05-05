@@ -6,13 +6,13 @@ from glob import glob
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
 class delete_background_detections(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
-        self.user = kwargs.get('user', 'lab')
         self.priority = kwargs.get('priority', '2')
         self.points = kwargs["cell_candidates_path"]
         self.masks = kwargs["fg_mask_path"]
@@ -21,6 +21,7 @@ class delete_background_detections(ImageOperation):
             provenance = json.load(open(provenance_path, 'r'))
             self.input = provenance['base_input_dir']
             self.output = provenance['base_output_dir']
+        self.user = kwargs.get('user', get_user(self.input))
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']

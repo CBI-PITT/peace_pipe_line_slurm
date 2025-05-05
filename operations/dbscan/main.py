@@ -6,6 +6,7 @@ from glob import glob
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -13,13 +14,18 @@ class dbscan(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
         self.name = "dbscan"
+        self.points = kwargs["cell_candidates_path"]
+        if not self.input or not self.output:
+            provenance_path = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
+            provenance = json.load(open(provenance_path, 'r'))
+            self.input = provenance['base_input_dir']
+            self.output = provenance['base_output_dir']
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
 
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
-        self.points = kwargs["cell_candidates_path"]
         self.epsilon = int(kwargs.get("epsilon", 3))
         self.min_samples = int(kwargs.get("min_samples", 2))
         self.output_operation_folder = os.path.join(self.output, self.name)

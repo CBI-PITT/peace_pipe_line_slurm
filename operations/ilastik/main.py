@@ -9,6 +9,7 @@ from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_array, split_slurm_array
 
 
@@ -20,7 +21,7 @@ class ilastik(ImageOperation):
             self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.model = kwargs['model_path']  # TODO no default model
 

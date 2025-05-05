@@ -11,13 +11,14 @@ from analysis import settings
 from analysis.guess_background_channel import guess_background
 from analysis.guess_brain_orientation import guess_orientation
 from operations.base import ImageReader
+from utils import get_user
 from utils.slurm import split_slurm_array, submit_slurm_array
 
 
 class imaris_reader(ImageReader):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.channel = int(kwargs.get('channel', 0))
         self.all_channels = int(kwargs.get('all_channels', False))
