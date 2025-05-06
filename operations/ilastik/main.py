@@ -24,6 +24,7 @@ class ilastik(ImageOperation):
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.model = kwargs['model_path']  # TODO no default model
+        self.binarize_threshold = kwargs.get('binarize_threshold', 0.5)
 
         self.output_operation_folder = os.path.join(self.output, 'ilastik')
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
@@ -40,6 +41,14 @@ class ilastik(ImageOperation):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.save_folder):
             os.makedirs(self.save_folder)
+        binary_save_folder = os.path.join(
+            self.output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"ilastik_model_{os.path.basename(self.model).replace('.ilp', '')}_threshold_{self.binarize_threshold}"
+        )
+        if not os.path.exists(binary_save_folder):
+            os.makedirs(binary_save_folder)
 
     def run(self):
         print("Running ilastik")
@@ -103,6 +112,8 @@ class ilastik(ImageOperation):
             f.write(str(self.model))
             f.write(' ')
             f.write('$SLURM_ARRAY_TASK_ID')
+            f.write(' ')
+            f.write(str(self.binarize_threshold))
             f.write('\n')
 
         extra_args = {}
