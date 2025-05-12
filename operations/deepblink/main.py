@@ -94,7 +94,7 @@ class deepblink(ImageOperation):
         job_ids = submit_slurm_job(
             path_to_task,
             partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
-            cores=8,
+            cores=1,
             memory=128,
             priority=self.priority,
             extra_args=extra_args

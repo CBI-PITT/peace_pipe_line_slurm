@@ -106,25 +106,15 @@ def write_detection_task_for_slurm(chunk_number, output_path):
 
 
 def submit_slurm_task_gpu(path_to_task):
-    submit_slurm_job(
+    job_ids = submit_slurm_job(
         path_to_task,
         partition=f'{settings.SLURM_PARTITION_GPU}',
-        cores=8,
+        cores=1,
         memory=64,
         needs_gpu=True,
         priority=priority
     )
-    # nice_value = PRIORITY_TO_NICE_MAP_GPU[priority]
-    # command = [
-    #     'sbatch',
-    #     '-p', 'gpu',  # TODO use settings
-    #     '--gres=gpu:1',
-    #     '--mem=64Gb',
-    #     '-n8',
-    #     f'--nice={nice_value}',
-    #     path_to_task
-    # ]
-    # subprocess.run(command)
+    return job_ids
 
 
 def detect_cells_deepblink_one_chunk(chunk_number):
@@ -135,7 +125,8 @@ def detect_cells_deepblink_one_chunk(chunk_number):
     print(f"Submitting gpu task for chunk {chunk_number}")
     task_path = os.path.join(jobs_folder, f"detect_chunk_{str(chunk_number).zfill(5)}.sh")
     write_detection_task_for_slurm(chunk_number, task_path)
-    submit_slurm_task_gpu(task_path)
+    job_ids = submit_slurm_task_gpu(task_path)
+    return job_ids
 
 
 def delete_extracted_chunk_by_number(number):
@@ -148,28 +139,44 @@ def delete_extracted_chunk_by_number(number):
     print('removed', chunk_file)
 
 
-def convert_one_csv_to_napari_format_by_number(number):
-    import pandas as pd
-    csv_file = os.path.join(detection_folder, f"chunk_{str(number).zfill(5)}.csv")
-    napari_csv_file_path = os.path.join(napari_folder, f"napari_{os.path.basename(csv_file)}")
-    if os.path.exists(napari_csv_file_path):
-        return
-    try:
-        df = pd.read_csv(csv_file)
-    except pd.errors.EmptyDataError as e:
-        print("Warning: ", e)
-        df2 = pd.DataFrame()
-        df2.to_csv(napari_csv_file_path)
-        return
-    df2 = pd.DataFrame()
-    df2['index'] = list(range(df.shape[0]))
-    zvals = df['z'].tolist()
-    yvals = df['y [px]'].tolist()
-    xvals = df['x [px]'].tolist()
-    df2['axis-0'] = zvals
-    df2['axis-1'] = xvals
-    df2['axis-2'] = yvals
-    df2.to_csv(napari_csv_file_path)
+def convert_one_csv_to_napari_format_by_number(number, prerequisites=None):
+    path_to_task = os.path.join(jobs_folder, f"napari_{chunk_number}.sh")
+    main_script = os.path.abspath(__file__)
+    slurm_script = os.path.join(os.path.dirname(main_script), "napari_one_chunk.py")
+
+    with open(path_to_task, 'w') as f:
+        f.write('#!/bin/bash\n')
+        f.write('\n')
+        f.write(f"#SBATCH -J {username}-deepblink-napari")
+        f.write('\n')
+        f.write(f"#SBATCH -o {jobs_folder}/slurm_napari_%j.out")
+        f.write('\n')
+        f.write('\n')
+        f.write("source /h20/home/lab/miniconda3/bin/activate peace")
+        f.write('\n')
+        f.write(f'python {slurm_script}')
+        f.write(' ')
+        f.write(str(number))
+        f.write(' ')
+        f.write(detection_folder if ' ' not in detection_folder else f'"{detection_folder}"')
+        f.write(' ')
+        f.write(napari_folder if ' ' not in napari_folder else f'"{napari_folder}"')
+        f.write('\n')
+
+    extra_args = {}
+    if prerequisites:
+        extra_args['--depend'] = f'afterok:{":".join(list(map(str, prerequisites)))}'
+        extra_args['--kill-on-invalid-dep'] = 'yes'
+
+    job_ids = submit_slurm_job(
+        path_to_task,
+        partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+        cores=1,
+        memory=8,
+        priority=priority,
+        extra_args=extra_args
+    )
+    return job_ids
 
 
 def extract_chunk_by_number(number):
@@ -179,7 +186,7 @@ def extract_chunk_by_number(number):
         extract_chunk_from_tiff_series_by_number(number)
 
 
-def run_dbscan_on_chunk(chunk_number):
+def run_dbscan_on_chunk(chunk_number, prerequisites=None):
     path_to_task = os.path.join(jobs_folder, f"dbscan_{chunk_number}.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "dbscan_one_chunk.py")
@@ -189,7 +196,6 @@ def run_dbscan_on_chunk(chunk_number):
         os.makedirs(output_dir)
     except:
         pass
-    # nice_value = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
 
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
@@ -207,23 +213,19 @@ def run_dbscan_on_chunk(chunk_number):
         f.write(output_dir if ' ' not in output_dir else f'"{output_dir}"')
         f.write('\n')
 
+    extra_args = {}
+    if prerequisites:
+        extra_args['--depend'] = f'afterok:{":".join(list(map(str, prerequisites)))}'
+        extra_args['--kill-on-invalid-dep'] = 'yes'
+
     submit_slurm_job(
         path_to_task,
         partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-        cores=8,
-        memory=32,
-        priority=priority
+        cores=1,
+        memory=8,
+        priority=priority,
+        extra_args=extra_args
     )
-    # command = [
-    #     'sbatch',
-    #     '-p', 'compute,gpu',
-    #     '--mem=32Gb',
-    #     '-n8',
-    #     f'--nice={nice_value}',
-    #     path_to_task
-    # ]
-    # # print("command", command)
-    # subprocess.run(command)
 
 
 def extract_detect_deepblink_delete(number):
@@ -245,26 +247,22 @@ def extract_detect_deepblink_delete(number):
             # return
         print("extracted")
     detections_file_name = os.path.join(detection_folder, f"chunk_{str(number).zfill(5)}.csv")
+    detection_job_ids = []
     if not os.path.exists(detections_file_name):
-        detect_cells_deepblink_one_chunk(number)
-        print("sent detection job")
+        detection_job_ids = detect_cells_deepblink_one_chunk(number)
+        print("sent detection job", detection_job_ids)
     else:
         print(f"Skipping chunk {number}")
 
-    # delete_extracted_chunk_by_number(number)
-    # print("Deleted")
     napari_file_name = os.path.join(napari_folder, f"napari_chunk_{str(number).zfill(5)}.csv")
+    napari_job_ids = []
     if not os.path.exists(napari_file_name):
-        try:
-            convert_one_csv_to_napari_format_by_number(number)
-        except:
-            print(f"EXCEPTION: unable to save to napari format chunk # {number}")
-            save_empty_napari_df()
-            return
-        print("Converted to napari")
+        napari_job_ids = convert_one_csv_to_napari_format_by_number(number, prerequisites=detection_job_ids)
+        print("sent napari job", napari_job_ids)
+
     dbscan_file_name = os.path.join(dbscan_folder, f"dbscan_napari_chunk_{str(number).zfill(5)}.csv")
     if with_dbscan and not os.path.exists(dbscan_file_name):
-        run_dbscan_on_chunk(number)
+        run_dbscan_on_chunk(number, prerequisites=napari_job_ids)
 
 
 INPUT_DIR = sys.argv[1]  # TODO: this can be read directly from the JSON file

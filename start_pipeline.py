@@ -171,10 +171,21 @@ def start_workflow_slurm(settings_file_path):
             return
     outputs = {}
     steps = json_settings["steps"]
-    operation_outputs = {x['operation']: x['output_name'] for x in steps}
+    # operation_outputs = {x['operation']: x['output_name'] for x in steps}
+    operation_outputs = {}
+
     for step in steps:
         operation_name = step['operation']
         print("Operation name", operation_name)
+        extended_operation_name = operation_name
+        if operation_name not in operation_outputs:
+            operation_outputs[operation_name] = step['output_name']
+        else:
+            count = 1
+            while extended_operation_name in operation_outputs:
+                extended_operation_name = operation_name + str(count)
+                count += 1
+            operation_outputs[extended_operation_name] = step['output_name']
         try:
             operation_class = getattr(sys.modules[__name__], operation_name)
         except AttributeError:
@@ -189,11 +200,16 @@ def start_workflow_slurm(settings_file_path):
         extras = step["extras"].copy()
         extras.pop("operation")
         inputs_from_other_operations = step['input_bindings']
+        print("inputs_from_other_operations", inputs_from_other_operations)
+        print("operation_outputs", operation_outputs)
         for k, v in inputs_from_other_operations.items():
             previous_operation = [x for x in operation_outputs.keys() if operation_outputs[x] == v][0]
+            print("previous_operation", previous_operation)
             previous_operation_info = outputs[previous_operation]
             previous_operation_provenance = json.load(open(previous_operation_info['provenance'], 'r'))
+            print("previous_operation_provenance", previous_operation_provenance)
             previous_operation_output = previous_operation_provenance['output']['path']
+            print("previous_operation_output", previous_operation_output)
             extras[k] = previous_operation_output
             if 'prerequisites' in extras:
                 extras['prerequisites'].extend(previous_operation_info['prerequisites'])
@@ -213,7 +229,7 @@ def start_workflow_slurm(settings_file_path):
         provenance, prerequisites = operation.run()
         print("================ got provenance:", provenance)
         print("================ got job ids:", prerequisites)
-        outputs[operation_name] = {'provenance': provenance, 'prerequisites': prerequisites}
+        outputs[extended_operation_name] = {'provenance': provenance, 'prerequisites': prerequisites}
 
 
 while True:

@@ -110,8 +110,8 @@ class imaris_reader(ImageReader):
                 z_layers,
                 numbers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                cores=12,
-                memory=32,
+                cores=1,
+                memory=8,
                 priority=self.priority
             )
         else:
@@ -119,8 +119,8 @@ class imaris_reader(ImageReader):
                 path_to_task,
                 z_layers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                cores=12,
-                memory=32,
+                cores=1,
+                memory=8,
                 priority=self.priority
             )
         return job_ids
@@ -169,8 +169,8 @@ class imaris_reader(ImageReader):
                     z_layers,
                     numbers,
                     partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                    cores=12,
-                    memory=32,
+                    cores=1,
+                    memory=8,
                     priority=self.priority
                 )
             else:
@@ -178,8 +178,8 @@ class imaris_reader(ImageReader):
                     path_to_task,
                     z_layers,
                     partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                    cores=12,
-                    memory=32,
+                    cores=1,
+                    memory=8,
                     priority=self.priority
                 )
 

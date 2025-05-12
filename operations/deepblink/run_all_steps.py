@@ -111,8 +111,8 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
             number_of_chunks,
             numbers,
             partition=','.join([settings.SLURM_PARTITION_CPU]),
-            cores=12,
-            memory=32,
+            cores=1,
+            memory=8,
             priority=priority
         )
     else:
@@ -120,8 +120,8 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
             path_to_task,
             number_of_chunks,
             partition=f'{settings.SLURM_PARTITION_CPU}',
-            cores=12,
-            memory=32,
+            cores=1,
+            memory=8,
             priority=priority
         )
 

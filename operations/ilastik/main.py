@@ -135,7 +135,7 @@ class ilastik(ImageOperation):
                 numbers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
                 cores=12,
-                memory=32,
+                memory=64,
                 priority=self.priority,
                 extra_args=extra_args
             )
@@ -145,7 +145,7 @@ class ilastik(ImageOperation):
                 z_layers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
                 cores=12,
-                memory=32,
+                memory=64,
                 priority=self.priority,
                 extra_args=extra_args
             )
