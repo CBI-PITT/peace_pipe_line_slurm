@@ -160,6 +160,78 @@ def start_reader_slurm(settings_file_path):
     operation.run()
 
 
+def start_workflow_slurm(settings_file_path):
+    print("Starting workflow")
+    with open(settings_file_path, 'r') as f:
+        settings_str = f.read()
+        try:
+            json_settings = json.loads(settings_str)
+        except:
+            log.exception("Unable to parse settings json")
+            return
+    outputs = {}
+    steps = json_settings["steps"]
+    # operation_outputs = {x['operation']: x['output_name'] for x in steps}
+    operation_outputs = {}
+
+    for step in steps:
+        operation_name = step['operation']
+        print("Operation name", operation_name)
+        extended_operation_name = operation_name
+        if operation_name not in operation_outputs:
+            operation_outputs[operation_name] = step['output_name']
+        else:
+            count = 1
+            while extended_operation_name in operation_outputs:
+                extended_operation_name = operation_name + str(count)
+                count += 1
+            operation_outputs[extended_operation_name] = step['output_name']
+        try:
+            operation_class = getattr(sys.modules[__name__], operation_name)
+        except AttributeError:
+            print(f"Attempting to load plugin for operation {operation_name}")
+            operation_class = reader_plugins.get(operation_name)
+            print('operation_class', operation_class)
+            if not operation_class:
+                operation_class = plugins.get(operation_name)
+
+        input = ""
+        output = ""
+        extras = step["extras"].copy()
+        extras.pop("operation")
+        inputs_from_other_operations = step['input_bindings']
+        print("inputs_from_other_operations", inputs_from_other_operations)
+        print("operation_outputs", operation_outputs)
+        for k, v in inputs_from_other_operations.items():
+            previous_operation = [x for x in operation_outputs.keys() if operation_outputs[x] == v][0]
+            print("previous_operation", previous_operation)
+            previous_operation_info = outputs[previous_operation]
+            previous_operation_provenance = json.load(open(previous_operation_info['provenance'], 'r'))
+            print("previous_operation_provenance", previous_operation_provenance)
+            previous_operation_output = previous_operation_provenance['output']['path']
+            print("previous_operation_output", previous_operation_output)
+            extras[k] = previous_operation_output
+            if 'prerequisites' in extras:
+                extras['prerequisites'].extend(previous_operation_info['prerequisites'])
+            else:
+                extras['prerequisites'] = previous_operation_info['prerequisites']
+            if 'output' not in extras:
+                extras["output"] = previous_operation_provenance["base_output_dir"]
+        if 'input' in extras:
+            input = extras.pop('input')
+        if 'output' in extras:
+            output = extras.pop('output')
+
+        print("input", input)
+        print("output", output)
+        print("extras", extras)
+        operation = operation_class(input, output, **extras)
+        provenance, prerequisites = operation.run()
+        print("================ got provenance:", provenance)
+        print("================ got job ids:", prerequisites)
+        outputs[extended_operation_name] = {'provenance': provenance, 'prerequisites': prerequisites}
+
+
 while True:
     for json_folder in settings.JSON_FOLDERS:
         print(f"Looking for tasks in {json_folder}...")
@@ -194,5 +266,20 @@ while True:
             else:
                 os.rename(settings_file_path, os.path.join(json_folder, 'done', os.path.basename(settings_file_path)))
 
+        ### look for workflows ###
+        workflow_json_files = sorted(glob(os.path.join(json_folder, f'SLURM_workflow*.json')))
+        print(len(workflow_json_files), "workflow JSON files found")
+        for workflow_json_file in workflow_json_files:
+            print("Starting processing")
+            settings_file_path = workflow_json_file
+            setattr(settings, "SETTINGS_FILE_PATH", settings_file_path)
+            try:
+                start_workflow_slurm(settings_file_path)
+            except Exception as e:
+                os.rename(settings_file_path, os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
+                print(traceback.format_exc())
+            else:
+                os.rename(settings_file_path, os.path.join(json_folder, 'done', os.path.basename(settings_file_path)))
+
         print("Waining 30 seconds...")
-        time.sleep(30)
+        time.sleep(5)

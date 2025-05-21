@@ -8,6 +8,7 @@ import numpy as np
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_array
 
 
@@ -21,7 +22,7 @@ class unet_3d(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.model = kwargs.get('model')  # TODO: add default model
 
@@ -34,6 +35,8 @@ class unet_3d(ImageOperation):
             f"channel_{self.channel}",
             f"model_{os.path.basename(self.model)}"
         )
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("3D U-Net prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.chunks_folder):
             os.makedirs(self.chunks_folder)
@@ -44,10 +47,11 @@ class unet_3d(ImageOperation):
 
     def run(self):
         print("Running 3D UNet")
-        self.create_provenance()
+        provenance_file_path = self.create_provenance()
         number_of_chunks = self.get_chunking()
         print("number of chunks", number_of_chunks)
-        self.submit_detection_cpu_slurm_array(number_of_chunks)
+        job_ids = self.submit_detection_cpu_slurm_array(number_of_chunks)
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         sequence = ",".join([self.metadata.get('sequence', ''), self.name])
@@ -72,10 +76,10 @@ class unet_3d(ImageOperation):
             "base_input_dir": self.input,
             "sequence": sequence
         }
-        with open(
-                os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def get_chunking(self):
         tiff_stack_shape = self.metadata['shape']
@@ -143,11 +147,18 @@ class unet_3d(ImageOperation):
             f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {self.priority}')
             f.write('\n')
 
-        submit_slurm_array(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
+
+        job_ids = submit_slurm_array(
             path_to_task,
             number_of_chunks,
             partition=f'{settings.SLURM_PARTITION_CPU}',
             cores=12,
             memory=32,
-            priority=self.priority
+            priority=self.priority,
+            extra_args=extra_args
         )
+        return job_ids

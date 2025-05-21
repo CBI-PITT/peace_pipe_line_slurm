@@ -6,7 +6,11 @@ from analysis.settings import (
 )
 
 
-def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0):
+def get_job_number_from_slurm_out(output):
+    return int(output.stdout[20:-1])
+
+
+def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
     if needs_gpu:
         nice = PRIORITY_TO_NICE_MAP_GPU[priority]
     else:
@@ -20,9 +24,17 @@ def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8,
         f'--mem={memory}Gb',
         f'-n{cores}',
         f'--nice={nice}',
-        job_path
     ]
-    subprocess.run(command)
+    if extra_args and type(extra_args) is dict:
+        for k, v in extra_args.items():
+            command.append(f"{k}={v}")
+    command.append(job_path)
+    output = subprocess.run(command, capture_output=True, text=True)
+    try:
+        job_number = get_job_number_from_slurm_out(output)
+        return [job_number]
+    except:
+        return []
 
 
 def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
@@ -45,7 +57,12 @@ def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU,
         for k, v in extra_args.items():
             command.append(f"{k}={v}")
     command.append(job_path)
-    subprocess.run(command)
+    output = subprocess.run(command, capture_output=True, text=True)
+    try:
+        job_number = get_job_number_from_slurm_out(output)
+        return [job_number]
+    except:
+        return []
 
 
 def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
@@ -68,7 +85,12 @@ def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM
         for k, v in extra_args.items():
             command.append(f"{k}={v}")
     command.append(job_path)
-    subprocess.run(command)
+    output = subprocess.run(command, capture_output=True, text=True)
+    try:
+        job_number = get_job_number_from_slurm_out(output)
+        return job_number
+    except:
+        return None
 
 
 def split_range_in_subranges(n, existing_outputs):
@@ -92,8 +114,9 @@ def split_range_in_subranges(n, existing_outputs):
 
 def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
     subranges = split_range_in_subranges(number_of_tasks, existing_outputs)
+    job_ids = []
     for start, end in subranges:
-        submit_partial_slurm_array(
+        job_id = submit_partial_slurm_array(
             job_path,
             start,
             end,
@@ -104,3 +127,6 @@ def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLU
             priority=priority,
             extra_args=extra_args
         )
+        if job_id:
+            job_ids.append(job_id)
+    return job_ids

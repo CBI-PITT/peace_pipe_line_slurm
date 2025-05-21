@@ -56,7 +56,7 @@ def launch_job_array():
     if len(already_done):
         print("Partially processed")
         print("Processed", len(already_done), "of", z_layers)
-        files = os.listdir(self.save_folder)
+        files = os.listdir(OUTPUT_DIR)
         pattern = "_z(\d+)\.csv"
         numbers = [re.findall(pattern, x)[0] for x in files]
         numbers = set(map(int, numbers))
@@ -93,7 +93,7 @@ def merge_df():
         df = pd.concat([df, chunk_df])
 
     print("Saving df")
-    df.to_csv(os.path.join(str(Path(OUTPUT_DIR).parent), f'{os.path.basename(OUTPUT_DIR)}.csv'))
+    df.to_csv(os.path.join(str(Path(OUTPUT_DIR).parent), f'{os.path.basename(OUTPUT_DIR)}.csv'), index=False)
 
 
 INPUT_TIFF_STACK_DIR = sys.argv[1]

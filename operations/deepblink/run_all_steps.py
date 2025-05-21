@@ -111,8 +111,8 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
             number_of_chunks,
             numbers,
             partition=','.join([settings.SLURM_PARTITION_CPU]),
-            cores=12,
-            memory=32,
+            cores=1,
+            memory=8,
             priority=priority
         )
     else:
@@ -120,8 +120,8 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
             path_to_task,
             number_of_chunks,
             partition=f'{settings.SLURM_PARTITION_CPU}',
-            cores=12,
-            memory=32,
+            cores=1,
+            memory=8,
             priority=priority
         )
 
@@ -152,7 +152,7 @@ def merge_df():
         df = pd.concat([df, chunk_df_corrected])
 
     print("Saving df")
-    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_df.csv'))
+    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_df.csv'), index=False)
 
 
 def merge_dbscan_df():
@@ -180,7 +180,7 @@ def merge_dbscan_df():
         df = pd.concat([df, chunk_df_corrected])
 
     print("Saving df")
-    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_dbscan_df.csv'))
+    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_dbscan_df.csv'), index=False)
 
 
 INPUT_DIR = sys.argv[1]

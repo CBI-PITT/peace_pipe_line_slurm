@@ -1,5 +1,6 @@
 import os
 import sys
+from glob import glob
 from pathlib import Path
 
 import numpy as np
@@ -23,7 +24,8 @@ OUTPUT_DIR = sys.argv[2]
 resolution_level = sys.argv[3]
 channel = sys.argv[4]
 model_path = sys.argv[5]
-z = sys.argv[6]
+z = int(sys.argv[6])
+binarize_threshold = float(sys.argv[7])
 
 print("INPUT_DIR", INPUT_DIR)
 print("OUTPUT_DIR", OUTPUT_DIR)
@@ -40,12 +42,13 @@ def binarize(image):
     return image
 
 
-input_file = os.path.join(
-    INPUT_DIR,
-    # f'resolution_level_{resolution_level}',
-    # f'channel_{channel}',
-    f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
-)
+# input_file = os.path.join(
+#     INPUT_DIR,
+#     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
+# )
+input_files = sorted(glob(os.path.join(INPUT_DIR, "*.tif")))
+input_file = input_files[z]
+
 
 output_file = os.path.join(
     OUTPUT_DIR,
@@ -53,7 +56,8 @@ output_file = os.path.join(
     f'resolution_level_{resolution_level}',
     f'channel_{channel}',
     f"ilastik_model_{os.path.basename(model_path).replace('.ilp', '')}",
-    f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
+    os.path.basename(input_file)
+    # f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
 )
 
 if os.path.exists(output_file):
@@ -69,4 +73,17 @@ except:
     print(traceback.format_exc())
 
 tifffile.imwrite(output_file, img)
+
+output_file_binary = os.path.join(
+    OUTPUT_DIR,
+    f'ilastik',
+    f'resolution_level_{resolution_level}',
+    f'channel_{channel}',
+    f"ilastik_model_{os.path.basename(model_path).replace('.ilp', '')}_threshold_{binarize_threshold}",
+    os.path.basename(input_file)
+)
+
+mask = img > binarize_threshold
+tifffile.imwrite(output_file_binary, mask)
+
 print("Done")

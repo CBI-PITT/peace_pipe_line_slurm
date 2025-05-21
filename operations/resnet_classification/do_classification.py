@@ -158,7 +158,8 @@ df_inference_complete.to_csv(
     os.path.join(
         save_results_to,
         f'predictions_{model_name}.csv'
-    )
+    ),
+    index=False
 )
 
 df_inference_cells = df_inference_complete.loc[df_inference_complete["nn_decoded"] == "cell"]
@@ -174,7 +175,8 @@ cells_df.to_csv(
     os.path.join(
         save_results_to,
         f'predicted_cells_{model_name}.csv'
-    )
+    ),
+    index=False
 )
 
 non_cells_df = pd.DataFrame()
@@ -186,5 +188,6 @@ non_cells_df.to_csv(
     os.path.join(
         save_results_to,
         f'predicted_non_cells_{model_name}.csv'
-    )
+    ),
+    index=False
 )

@@ -12,6 +12,7 @@ from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 
 from ..base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
@@ -35,7 +36,7 @@ class ants(ImageOperation):
         self.name = "ants"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.background_channel = int(self.metadata['channel'])
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', "sal")
@@ -55,6 +56,9 @@ class ants(ImageOperation):
             f"channel_{self.background_channel}",
             f"registration_{self.atlas}{previous_operation}"
         )
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("ANTS prerequisites", self.prerequisites)
+
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -63,10 +67,9 @@ class ants(ImageOperation):
 
     def run(self):
         print("Running ants")
-        # print("Input", self.input)
-        # print("Output", self.output)
-        # print("Channel", self.background_channel)
-        self.run_registration()  # run ants in SLURM
+        provenance_file_path = self.create_provenance()
+        job_ids = self.run_registration()  # run ants in SLURM
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         sequence = ",".join([self.metadata.get('sequence', ""), self.name])
@@ -92,10 +95,10 @@ class ants(ImageOperation):
             "base_input_dir": self.input,
             "sequence": sequence
         }
-        with open(
-                os.path.join(self.registration_folder, f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(self.registration_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def calculate_resolution_level(self):
         atlas = BrainGlobeAtlas(self.atlas)
@@ -163,10 +166,17 @@ class ants(ImageOperation):
             f.write('\n')
 
         print("Starting registration...")
-        submit_slurm_job(
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
+
+        job_ids = submit_slurm_job(
             path_to_task,
-            partition=f'{settings.SLURM_PARTITION_CPU},{settings.SLURM_PARTITION_HIGH_RAM}',
+            partition=settings.SLURM_PARTITION_HIGH_RAM,
             cores=24,
-            memory=64,
-            priority=self.priority
+            memory=128,
+            priority=self.priority,
+            extra_args=extra_args
         )
+        return job_ids

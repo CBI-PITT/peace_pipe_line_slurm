@@ -8,6 +8,7 @@ from imaris_ims_file_reader import ims
 
 from operations.base import ImageOperation
 from analysis import settings
+from utils import get_user
 from utils.slurm import split_slurm_array, submit_slurm_array
 
 
@@ -17,7 +18,7 @@ class rembg(ImageOperation):
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
-        self.user = kwargs.get('user', 'lab')
+        self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
 
         self.output_operation_folder = os.path.join(self.output, 'rembg')
@@ -33,6 +34,8 @@ class rembg(ImageOperation):
             f'channel_{self.channel}',
             f"removed_background{previous_operation}"
         )
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("rembg prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -41,8 +44,9 @@ class rembg(ImageOperation):
 
     def run(self):
         print("Running rembg")
-        self.create_provenance()
-        self.run_rembg()
+        provenance_file_path = self.create_provenance()
+        job_ids = self.run_rembg()
+        return provenance_file_path, job_ids
 
     def create_provenance(self):
         source = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
@@ -73,10 +77,10 @@ class rembg(ImageOperation):
             "base_input_dir": base_input_dir,
             "sequence": sequence
         }
-        with open(
-                os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}'),
-                "w") as f:
+        provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
+        return provenance_file_path
 
     def run_rembg(self):
         z_layers = self.metadata['shape'][-3]
@@ -106,6 +110,11 @@ class rembg(ImageOperation):
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write('\n')
 
+        extra_args = {'--export': 'OMP_NUM_THREADS=12'}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
+
         already_done = glob(os.path.join(self.save_folder, "*.tif"))
         if len(already_done):
             print("Partially processed")
@@ -114,7 +123,8 @@ class rembg(ImageOperation):
             pattern = "_z(\d+)\.tif"
             numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
             numbers = set(map(int, numbers))
-            split_slurm_array(
+
+            job_ids = split_slurm_array(
                 path_to_task,
                 z_layers,
                 numbers,
@@ -122,15 +132,16 @@ class rembg(ImageOperation):
                 cores=12,
                 memory=32,
                 priority=self.priority,
-                extra_args={'--export': 'OMP_NUM_THREADS=12'}
+                extra_args=extra_args
             )
         else:
-            submit_slurm_array(
+            job_ids = submit_slurm_array(
                 path_to_task,
                 z_layers,
                 partition=settings.SLURM_PARTITION_CPU,
                 cores=12,
                 memory=32,
                 priority=self.priority,
-                extra_args={'--export': 'OMP_NUM_THREADS=12'}
+                extra_args=extra_args
             )
+        return job_ids
