@@ -11,3 +11,4 @@ from .unet_3d import unet_3d
 from .delete_background_detections import delete_background_detections
 from .transform_points import transform_points
 from .combine_with_metadata import combine_with_metadata
+from .denoise_cellpose import denoise_cellpose
