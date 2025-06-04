@@ -24,20 +24,16 @@ channel = sys.argv[4]
 z = sys.argv[5]
 MODEL = sys.argv[6]
 DIAMETER = int(sys.argv[7])
+stack_min = int(sys.argv[8])
+stack_max = int(sys.argv[9])
 
 
 def denoise_img(img):
     dn = denoise.DenoiseModel(model_type=MODEL, gpu=GPU)
-
     img = img.astype('float32')
-    img = (img - img.min())/(img.max() - img.min())
-
+    img = (img - stack_min)/(stack_max - stack_min)
     img_dn = dn.eval(img, channels=None, diameter=DIAMETER)
-
     img_dn = np.squeeze(img_dn)
-
-    img_dn = (img_dn - img_dn.min()) / (img_dn.max() - img_dn.min())
-    img_dn = img_dn * 65535
     return img_dn
 
 

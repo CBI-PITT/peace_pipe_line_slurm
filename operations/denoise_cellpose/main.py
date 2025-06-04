@@ -10,7 +10,7 @@ import numpy as np
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_array
+from utils.slurm import submit_slurm_job
 
 
 class denoise_cellpose(ImageOperation):
@@ -84,35 +84,27 @@ class denoise_cellpose(ImageOperation):
         return provenance_file_path
 
     def run_denoising(self):
-        z_layers = self.metadata['shape'][-3]
-        path_to_task = os.path.join(self.jobs_folder, f"denoise_cellpose_rl{self.resolution_level}_c{self.channel}.sh")
+        path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
         main_script = os.path.abspath(__file__)
-        slurm_script = os.path.join(os.path.dirname(main_script), "do_denoising.py")
+        slurm_script = os.path.join(os.path.dirname(main_script), "run_all_steps.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-denoise-cellpose")
+            f.write(f"#SBATCH -J {self.user}-denoise-cellpose-main")
             f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate cellpose")
+            f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script}')
-            f.write(' ')
+            f.write(f'python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
-            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(str(self.resolution_level))
-            f.write(' ')
-            f.write(str(self.channel))
-            f.write(' ')
-            f.write('$SLURM_ARRAY_TASK_ID')
-            f.write(' ')
-            f.write(str(self.model))
-            f.write(' ')
-            f.write(str(self.diameter))
+            f.write(
+                f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.model} {str(self.diameter)}'
+            )
             f.write('\n')
 
         extra_args = {}
@@ -120,35 +112,12 @@ class denoise_cellpose(ImageOperation):
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
             extra_args['--kill-on-invalid-dep'] = 'yes'
 
-        already_done = glob(os.path.join(self.save_folder, "*.tif"))
-        if len(already_done):
-            print("Partially processed")
-            print("Processed", len(already_done), "of", z_layers)
-            files = os.listdir(self.save_folder)
-            pattern = "_z(\d+)\.tif"
-            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
-            numbers = set(map(int, numbers))
-            job_ids = split_slurm_array(
-                path_to_task,
-                z_layers,
-                numbers,
-                partition=settings.SLURM_PARTITION_GPU,
-                cores=1,
-                memory=32,
-                needs_gpu=True,
-                priority=self.priority,
-                extra_args=extra_args
-            )
-        else:
-            job_ids = submit_slurm_array(
-                path_to_task,
-                z_layers,
-                partition=settings.SLURM_PARTITION_GPU,
-                cores=1,
-                memory=32,
-                needs_gpu=True,
-                priority=self.priority,
-                extra_args=extra_args
-            )
+        job_ids = submit_slurm_job(
+            path_to_task,
+            partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+            cores=1,
+            memory=64,
+            priority=self.priority,
+            extra_args=extra_args
+        )
         return job_ids
-
