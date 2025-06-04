@@ -10,32 +10,30 @@ from imaris_ims_file_reader import ims
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import submit_slurm_job
 
 
-class stretch_contrast(ImageOperation):
+class remove_stripes_fft(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
-        self.name = 'stretch_contrast'
+        self.name = 'remove_stripes_fft'
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
-        self.percentile_low = kwargs.get('percentile_low', 2)
-        self.percentile_high = kwargs.get('percentile_high', 98)
+        self.stripe_direction = kwargs.get('stripe_direction', 'v')
+        self.composites_dir = kwargs.get('composites_dir')
 
         self.output_operation_folder = os.path.join(self.output, self.name)
         self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
-        self.extracted_tiffs_folder = os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{self.channel}')
         self.save_folder = os.path.join(
             self.output_operation_folder,
             f'resolution_level_{self.resolution_level}',
             f'channel_{self.channel}',
-            f"contrast_stretched_{self.percentile_low}_{self.percentile_high}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
-        print("Contrast Stretch prerequisites", self.prerequisites)
+        print("FFT stripes removal prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
             os.makedirs(self.jobs_folder)
@@ -43,9 +41,9 @@ class stretch_contrast(ImageOperation):
             os.makedirs(self.save_folder)
 
     def run(self):
-        print("Running contrast stretching")
+        print("Running FFT stripes removal")
         provenance_file_path = self.create_provenance()
-        job_ids = self.do_contrast_stretching()
+        job_ids = self.do_stripes_removal()
         return provenance_file_path, job_ids
 
     def create_provenance(self):
@@ -65,6 +63,7 @@ class stretch_contrast(ImageOperation):
             },
             "process": {
                 "parameters": {
+                    "stripe_direction": self.stripe_direction
                 }
             },
             "source": source,  # input provenance file
@@ -82,36 +81,29 @@ class stretch_contrast(ImageOperation):
             f.write(json.dumps(provenance))
         return provenance_file_path
 
-    def do_contrast_stretching(self):
-        z_layers = self.metadata['shape'][-3]
-        path_to_task = os.path.join(self.jobs_folder, f"stretch_contrast_rl{self.resolution_level}_c{self.channel}.sh")
+    def do_stripes_removal(self):
+        path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
         main_script = os.path.abspath(__file__)
-        slurm_script = os.path.join(os.path.dirname(main_script), "do_contrast_stretching.py")
+        slurm_script = os.path.join(os.path.dirname(main_script), "run_all_steps.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-stretch-contrast")
+            f.write(f"#SBATCH -J {self.user}-remove-stripes-main")
             f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script}')
-            f.write(' ')
+            f.write(f'python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
-            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
-            f.write(str(self.resolution_level))
+            f.write(
+                f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.stripe_direction}')
             f.write(' ')
-            f.write(str(self.channel))
-            f.write(' ')
-            f.write('$SLURM_ARRAY_TASK_ID')
-            f.write(' ')
-            f.write(str(self.percentile_low))
-            f.write(' ')
-            f.write(str(self.percentile_high))
+            f.write(self.composites_dir if ' ' not in self.composites_dir else f'"{self.composites_dir}"')
             f.write('\n')
 
         extra_args = {}
@@ -119,32 +111,12 @@ class stretch_contrast(ImageOperation):
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
             extra_args['--kill-on-invalid-dep'] = 'yes'
 
-        already_done = glob(os.path.join(self.save_folder, "*.tif"))
-        if len(already_done):
-            print("Partially processed")
-            print("Processed", len(already_done), "of", z_layers)
-            files = os.listdir(self.save_folder)
-            pattern = "_z(\d+)\.tif"
-            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
-            numbers = set(map(int, numbers))
-            job_ids = split_slurm_array(
-                path_to_task,
-                z_layers,
-                numbers,
-                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                cores=1,
-                memory=32,
-                priority=self.priority,
-                extra_args=extra_args
-            )
-        else:
-            job_ids = submit_slurm_array(
-                path_to_task,
-                z_layers,
-                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                cores=1,
-                memory=32,
-                priority=self.priority,
-                extra_args=extra_args
-            )
+        job_ids = submit_slurm_job(
+            path_to_task,
+            partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=1,
+            memory=32,
+            priority=self.priority,
+            extra_args=extra_args
+        )
         return job_ids
