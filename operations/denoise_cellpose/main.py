@@ -1,0 +1,123 @@
+import json
+import os
+import re
+import subprocess
+import time
+from glob import glob
+
+import numpy as np
+
+from ..base import ImageOperation
+from analysis import settings
+from utils import get_user
+from utils.slurm import submit_slurm_job
+
+
+class denoise_cellpose(ImageOperation):
+    def __init__(self, input, output, **kwargs):
+        super().__init__(input, output, **kwargs)
+        self.name = 'denoise_cellpose'
+        self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.channel = int(self.metadata['channel'])
+        self.resolution_level = int(self.metadata['resolution_level'])
+        self.user = kwargs.get('user', get_user(self.input))
+        self.priority = kwargs.get('priority', '2')
+        self.model = kwargs.get('model', 'denoise_cyto3')
+        self.diameter = int(kwargs.get('diameter', 100))
+
+        self.output_operation_folder = os.path.join(self.output, self.name)
+        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        self.save_folder = os.path.join(
+            self.output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"cellpose_model_{self.model}_diameter_{self.diameter}"
+        )
+        self.prerequisites = kwargs.get('prerequisites', [])
+        print("Denoise prerequisites", self.prerequisites)
+        os.umask(settings.UMASK)
+        if not os.path.exists(self.jobs_folder):
+            os.makedirs(self.jobs_folder)
+        if not os.path.exists(self.save_folder):
+            os.makedirs(self.save_folder)
+
+    def run(self):
+        print("Running cellpose in chunks")
+        provenance_file_path = self.create_provenance()
+        job_ids = self.run_denoising()
+        return provenance_file_path, job_ids
+
+    def create_provenance(self):
+        source = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
+        source_provenance = json.load(open(source, 'r'))
+        base_output_dir = source_provenance['base_output_dir']
+        base_input_dir = source_provenance['base_input_dir']
+        sequence = ",".join([source_provenance.get("sequence", ""), self.name])
+        provenance = {
+            "input": {
+                "type": "tiff_series",
+                "path": self.input,
+            },
+            "output": {
+                "type": "tiff_series",
+                "path": self.save_folder,
+            },
+            "process": {
+                "parameters": {
+                    "model": self.model,
+                    "diameter": self.diameter
+                }
+            },
+            "source": source,  # input provenance file
+            "channel": self.channel,
+            "resolution_level": self.resolution_level,
+            "resolution": source_provenance['resolution'],
+            "shape": source_provenance['shape'],
+            "orientation": source_provenance['orientation'],
+            "base_output_dir": base_output_dir,
+            "base_input_dir": base_input_dir,
+            "sequence": sequence
+        }
+        provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
+        with open(provenance_file_path, "w") as f:
+            f.write(json.dumps(provenance))
+        return provenance_file_path
+
+    def run_denoising(self):
+        path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
+        main_script = os.path.abspath(__file__)
+        slurm_script = os.path.join(os.path.dirname(main_script), "run_all_steps.py")
+        with open(path_to_task, 'w') as f:
+            f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-denoise-cellpose-main")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
+            f.write("source /h20/home/lab/miniconda3/bin/activate peace")
+            f.write('\n')
+            f.write(f'python {slurm_script} ')
+            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(' ')
+            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(' ')
+            f.write(
+                f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.model} {str(self.diameter)}'
+            )
+            f.write('\n')
+
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
+
+        job_ids = submit_slurm_job(
+            path_to_task,
+            partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+            cores=1,
+            memory=64,
+            priority=self.priority,
+            extra_args=extra_args
+        )
+        return job_ids
