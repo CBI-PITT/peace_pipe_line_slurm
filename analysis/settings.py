@@ -8,6 +8,7 @@ def init():
 
 
 JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/PEACE/JSON']
+TRASH_FOLDER = "/h20/trash"
 
 USERNAME = getpass.getuser()
 # USERNAME = 'lab'  # user that runs the pipeline

@@ -26,6 +26,7 @@ MODEL = sys.argv[6]
 DIAMETER = int(sys.argv[7])
 stack_min = int(sys.argv[8])
 stack_max = int(sys.argv[9])
+NPY_DIR = sys.argv[10]
 
 
 def denoise_img(img):
@@ -42,6 +43,7 @@ print("OUTPUT_DIR", OUTPUT_DIR)
 print("resolution_level", resolution_level)
 print("channel", channel)
 print("z", z)
+print("NPY_DIR", NPY_DIR)
 
 input_file = os.path.join(
     INPUT_DIR,
@@ -57,4 +59,10 @@ print("Stretching contrast")
 img = tifffile.imread(input_file)
 img = denoise_img(img)
 tifffile.imwrite(output_file, img)
+
+npy_file = os.path.join(
+    NPY_DIR,
+    f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.npy"
+)
+np.save(npy_file, np.array([img.min(), img.max()]))
 print("Done")
