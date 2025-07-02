@@ -11,26 +11,30 @@ from utils.slurm import submit_slurm_job
 class combine_with_metadata(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "combine_with_metadata"
         self.cells_path = kwargs.get('cells_path')  # CSV
+        self.source_provenance_path = os.path.join(os.path.dirname(self.cells_path), f'.{settings.INFO_FILE_NAME}')
+        self.source_provenance = json.load(open(self.source_provenance_path, 'r'))
         if not self.input or not self.output:
-            provenance_path = os.path.join(os.path.dirname(self.cells_path), f'.{settings.INFO_FILE_NAME}')
-            provenance = json.load(open(provenance_path, 'r'))
-            self.input = provenance['base_input_dir']
-            self.output = provenance['base_output_dir']
+            self.input = self.source_provenance['base_input_dir']
+            self.output = self.source_provenance['base_output_dir']
         self.metadata_path = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
         self.metadata = json.load(open(self.metadata_path, 'r'))
+        self.sequence = ",".join([self.source_provenance.get("sequence", ""), self.name])
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.metadata_fields = kwargs.get('metadata', [])
-        self.output_operation_folder = os.path.join(self.output, 'combine_with_metadata')
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
-        self.results_folder = os.path.join(
-            self.output_operation_folder,
+        self.output_operation_folder = os.path.join(self.output, self.name)
+        self.output_folder_sequence = os.path.join(
+            output_operation_folder,
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.channel}",
+            f"{self.sequence}"
         )
+        self.jobs_folder = os.path.join(self.output_folder_sequence, "slurm_jobs")
+        self.results_folder = self.output_folder_sequence
         self.out_csv_path = os.path.join(self.results_folder, f"{os.path.basename(self.cells_path).replace('.csv', '_with_metadata.csv')}")
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Prerequisites", self.prerequisites)
@@ -46,11 +50,8 @@ class combine_with_metadata(ImageOperation):
         return provenance_file_path, job_ids
 
     def create_provenance(self):
-        source = os.path.join(os.path.dirname(self.cells_path), f'.{settings.INFO_FILE_NAME}')
-        source_provenance = json.load(open(source, 'r'))
-        base_output_dir = source_provenance['base_output_dir']
-        base_input_dir = source_provenance['base_input_dir']
-        sequence = ",".join([source_provenance.get("sequence", ""), "combine_with_metadata"])
+        base_output_dir = self.source_provenance['base_output_dir']
+        base_input_dir = self.source_provenance['base_input_dir']
         provenance = {
             "input": {
                 "type": "csv",
@@ -64,12 +65,12 @@ class combine_with_metadata(ImageOperation):
                 "parameters": {
                 }
             },
-            "source": source,  # input provenance file
+            "source": self.source_provenance_path,  # input provenance file
             "channel": self.channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:

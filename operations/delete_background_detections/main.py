@@ -13,30 +13,34 @@ from utils.slurm import submit_slurm_job
 class delete_background_detections(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "delete_background_detections"
         self.priority = kwargs.get('priority', '2')
         self.points = kwargs["cell_candidates_path"]
         self.masks = kwargs["fg_mask_path"]
+        self.source_provenance_path = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
+        self.source_provenance = json.load(open(self.source_provenance_path, 'r'))
         if not self.input or not self.output:
-            provenance_path = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
-            provenance = json.load(open(provenance_path, 'r'))
-            self.input = provenance['base_input_dir']
-            self.output = provenance['base_output_dir']
+            self.input = self.source_provenance['base_input_dir']
+            self.output = self.source_provenance['base_output_dir']
         self.user = kwargs.get('user', get_user(self.input))
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.sequence = ",".join([self.source_provenance.get("sequence", ""), self.name])
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
-        self.output_operation_folder = os.path.join(self.output, 'delete_background_detections')
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        output_operation_folder = os.path.join(self.output, self.name)
+        output_folder_sequence = os.path.join(
+            output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"{self.sequence}"
+        )
+        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
         self.save_folder = os.path.join(
-            self.output_operation_folder,
-            f'resolution_level_{self.resolution_level}',
-            f'channel_{self.channel}',
+            output_folder_sequence,
             f"cleaned_bg_{os.path.basename(self.points).replace('.csv', '')}"
         )
         self.out_csv_path = os.path.join(
-            self.output_operation_folder,
-            f'resolution_level_{self.resolution_level}',
-            f'channel_{self.channel}',
+            output_folder_sequence,
             f"cleaned_bg_{os.path.basename(self.points)}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
@@ -58,11 +62,8 @@ class delete_background_detections(ImageOperation):
         return provenance_file_path, job_ids
 
     def create_provenance(self):
-        source = os.path.join(os.path.dirname(self.points), f'.{settings.INFO_FILE_NAME}')
-        source_provenance = json.load(open(source, 'r'))
-        base_output_dir = source_provenance['base_output_dir']
-        base_input_dir = source_provenance['base_input_dir']
-        sequence = ",".join([source_provenance.get("sequence", ""), "delete_background_detections"])
+        base_output_dir = self.source_provenance['base_output_dir']
+        base_input_dir = self.source_provenance['base_input_dir']
         provenance = {
             "input": [
                 {
@@ -82,12 +83,12 @@ class delete_background_detections(ImageOperation):
                 "parameters": {
                 }
             },
-            "source": source,  # input provenance file
+            "source": self.source_provenance_path,  # input provenance file
             "channel": self.channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:

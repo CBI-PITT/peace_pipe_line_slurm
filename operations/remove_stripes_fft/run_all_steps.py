@@ -37,7 +37,7 @@ def submit_stripes_removal_job_array():
         f.write('\n')
         f.write(f'python {slurm_script}')
         f.write(' ')
-        f.write(INPUT_DIR if ' ' not in INPUT_DIR else f'"{INPUT_DIR}"')
+        f.write(input_dir if ' ' not in input_dir else f'"{input_dir}"')
         f.write(' ')
         f.write(save_folder if ' ' not in save_folder else f'"{save_folder}"')
         f.write(' ')
@@ -132,7 +132,7 @@ def calculate_first_harmonic_from_majority():
     import tifffile
     print("Computing 1st harmonic from the data")
     harmonics = defaultdict(int)
-    imgs = sorted(glob(os.path.join(INPUT_DIR, '*.tif')))
+    imgs = sorted(glob(os.path.join(input_dir, '*.tif')))
     for z, img_name in enumerate(imgs):
         img = tifffile.imread(img_name)
         first_harmonic = calculate_first_harmonic_one_img(img, stripes_direction=stripe_direction)
@@ -144,8 +144,8 @@ def calculate_first_harmonic_from_majority():
     return int(most_frequent)
 
 
-INPUT_DIR = sys.argv[1]
-OUTPUT_DIR = sys.argv[2]
+input_dir = sys.argv[1]
+save_folder = sys.argv[2]
 resolution_level = int(sys.argv[3])
 channel = int(sys.argv[4])
 username = sys.argv[5]
@@ -153,21 +153,16 @@ priority = sys.argv[6]
 stripe_direction = sys.argv[7]
 composites_dir = sys.argv[8]
 
-metadata = json.load(open(os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
-output_operation_folder = os.path.join(OUTPUT_DIR, "remove_stripes_fft")
-jobs_folder = os.path.join(output_operation_folder, "slurm_jobs")
-save_folder = os.path.join(
-    output_operation_folder,
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
-)
+metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
+output_folder_sequence = Path(save_folder).parent
+jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
 
 first_harmonic = None
 
 if composites_dir:  # only for RSCM
     base_input_dir = metadata['base_input_dir']
     if not base_input_dir:
-        base_input_dir = INPUT_DIR
+        base_input_dir = input_dir
     base_metadata = json.load(open(os.path.join(base_input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
     ims_file_path = base_metadata['source']
     if ims_file_path.endswith('.ims'):

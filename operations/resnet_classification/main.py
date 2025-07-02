@@ -15,27 +15,29 @@ class resnet_classification(ImageOperation):
         super().__init__(input, output, **kwargs)
         self.name = "resnet_classification"
         self.cells = kwargs['cell_candidates_path']
+        self.source_provenance_path = os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}')
+        self.source_provenance = json.load(open(self.source_provenance_path, 'r'))
         if not self.input or not self.output:
-            provenance_path = os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}')
-            provenance = json.load(open(provenance_path, 'r'))
-            self.input = provenance['base_input_dir']
-            self.output = provenance['base_output_dir']
+            self.input = self.source_provenance['base_input_dir']
+            self.output = self.source_provenance['base_output_dir']
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.model_path = kwargs['model_path']
         self.metadata = json.load(open(os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.sequence = ",".join([self.source_provenance.get("sequence", ""), self.name])
         self.input = self.metadata['base_input_dir']
         self.output = self.metadata['base_output_dir']
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
-        self.output_operation_folder = os.path.join(self.output, self.name)
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
-        self.extracted_tiffs_folder = os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{self.channel}')
-        self.save_folder = os.path.join(
-            self.output_operation_folder,
-            f'resolution_level_{self.resolution_level}',
-            f'channel_{self.channel}',
+        output_operation_folder = os.path.join(self.output, self.name)
+        output_folder_sequence = os.path.join(
+            output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"{self.sequence}"
         )
+        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+        self.save_folder = output_folder_sequence
         self.out_csv_path = os.path.join(self.save_folder, f'predicted_cells_{os.path.basename(self.model_path)}.csv')
         self.prerequisites = kwargs.get('prerequisites', [])
         print("ResNet prerequisites", self.prerequisites)
@@ -56,11 +58,8 @@ class resnet_classification(ImageOperation):
         return provenance_file_path, job_ids
 
     def create_provenance(self):
-        source = os.path.join(os.path.dirname(self.cells), f'.{settings.INFO_FILE_NAME}')
-        source_provenance = json.load(open(source, 'r'))
-        base_output_dir = source_provenance['base_output_dir']
-        base_input_dir = source_provenance['base_input_dir']
-        sequence = ",".join([source_provenance.get("sequence", ""), self.name])
+        base_output_dir = self.source_provenance['base_output_dir']
+        base_input_dir = self.source_provenance['base_input_dir']
         provenance = {
             "input": {
                 "type": "csv",  # input type
@@ -75,12 +74,12 @@ class resnet_classification(ImageOperation):
                     "model": self.model_path
                 }
             },
-            "source": source,  # input provenance file
+            "source": self.source_provenance_path,  # input provenance file
             "channel": self.channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(os.path.dirname(self.out_csv_path), f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:

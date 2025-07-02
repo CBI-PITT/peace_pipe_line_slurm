@@ -163,7 +163,8 @@ def segment(stack, model_path):
                         single_patch_prediction = np.interp(single_patch_prediction, (
                         single_patch_prediction.min(), single_patch_prediction.max()), (0, 255))
                         single_patch_prediction = np.array(single_patch_prediction)
-                        # print(single_patch_prediction.shape)
+                        if np.all(single_patch_prediction > 0):
+                            single_patch_prediction[:, :, :] = 0
 
                         single_patch_prediction_th1 = (
                                     torch.sigmoid(prediction) == 1).float()  # binarize with threshold of 0.5
@@ -172,6 +173,8 @@ def segment(stack, model_path):
                         single_patch_prediction_th1 = np.interp(single_patch_prediction_th1, (
                         single_patch_prediction_th1.min(), single_patch_prediction_th1.max()), (0, 255))
                         single_patch_prediction_th1 = np.array(single_patch_prediction_th1)
+                        if np.all(single_patch_prediction_th1 > 0):
+                            single_patch_prediction_th1[:,:,:] = 0
 
                     # Insert segmented small patch into the large patch at corresponding coordinates
                     segm_stack[i:i + patch_size[0], j:j + patch_size[1], k:k + patch_size[2]] += single_patch_prediction

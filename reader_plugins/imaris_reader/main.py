@@ -46,9 +46,13 @@ class imaris_reader(ImageReader):
     def run(self):
         print("Running Imaris Reader")
         # create info json files with metadata
-        metadata = self.initialize_info_file()
-        with open(os.path.join(self.output, f'resolution_level_{self.resolution_level}', settings.INFO_FILE_NAME), "w") as f:
-            f.write(json.dumps(metadata))
+        main_metadata_json = os.path.join(self.output, f'resolution_level_{self.resolution_level}', settings.INFO_FILE_NAME)
+        if not os.path.exists(main_metadata_json):
+            metadata = self.initialize_info_file()
+            with open(main_metadata_json, "w") as f:
+                f.write(json.dumps(metadata))
+        else:
+            metadata = json.load(open(main_metadata_json, 'r'))
         job_ids = []
         if self.all_channels:
             for channel in range(self.channels):

@@ -28,21 +28,28 @@ class cellfinder(ImageOperation):
         super().__init__(input, output, **kwargs)
         self.name = "cellfinder"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
-        self.signal_channel = int(self.metadata['channel'])
+        if not self.output:
+            self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
+        self.sequence = ",".join([self.metadata.get("sequence", ""), self.name])
+        self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
-        self.output_operation_folder = os.path.join(self.output, self.name)
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        output_operation_folder = os.path.join(self.output, self.name)
+        output_folder_sequence = os.path.join(
+            output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"{self.sequence}"
+        )
+        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
         if self.metadata.get('sequence'):
             previous_operations = self.metadata['sequence'].split(',')
             previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
         else:
             previous_operation = ""
         self.detection_folder = os.path.join(
-            self.output_operation_folder,
-            f"resolution_level_{self.resolution_level}",
-            f"channel_{self.signal_channel}",
+            output_folder_sequence,
             f"cellfinder_output{previous_operation}"
         )
         self.out_csv_path = os.path.join(self.detection_folder, "points", "cells.xml")
@@ -66,7 +73,6 @@ class cellfinder(ImageOperation):
         return provenance_file_path, job_ids
 
     def create_provenance(self):
-        sequence = ",".join([self.metadata.get("sequence", ""), self.name])
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -81,11 +87,11 @@ class cellfinder(ImageOperation):
                 }
             },
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
-            "channel": self.signal_channel,
+            "channel": self.channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": self.metadata.get('out_name', self.metadata["base_output_dir"]),
             "base_input_dir": self.input,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(self.detection_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
@@ -93,7 +99,7 @@ class cellfinder(ImageOperation):
         return provenance_file_path
 
     def run_detection(self):
-        path_to_task = os.path.join(self.jobs_folder, f"cellfinder_rl{self.resolution_level}_c{self.signal_channel}.sh")
+        path_to_task = os.path.join(self.jobs_folder, f"cellfinder_rl{self.resolution_level}_c{self.channel}.sh")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             # f.write('ulimit -n 600000')

@@ -19,19 +19,13 @@ from analysis import settings
 os.umask(settings.UMASK)
 
 
-INPUT_DIR = sys.argv[1]
-OUTPUT_DIR = sys.argv[2]
+input_dir = sys.argv[1]
+output_folder_sequence = sys.argv[2]
 resolution_level = sys.argv[3]
 channel = sys.argv[4]
 model_path = sys.argv[5]
 z = int(sys.argv[6])
 binarize_threshold = float(sys.argv[7])
-
-print("INPUT_DIR", INPUT_DIR)
-print("OUTPUT_DIR", OUTPUT_DIR)
-print("resolution_level", resolution_level)
-print("channel", channel)
-print("z", z)
 
 
 def binarize(image):
@@ -42,19 +36,12 @@ def binarize(image):
     return image
 
 
-# input_file = os.path.join(
-#     INPUT_DIR,
-#     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
-# )
-input_files = sorted(glob(os.path.join(INPUT_DIR, "*.tif")))
+input_files = sorted(glob(os.path.join(input_dir, "*.tif")))
 input_file = input_files[z]
 
 
 output_file = os.path.join(
-    OUTPUT_DIR,
-    f'ilastik',
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
+    output_folder_sequence,
     f"ilastik_model_{os.path.basename(model_path).replace('.ilp', '')}",
     os.path.basename(input_file)
     # f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
@@ -75,10 +62,7 @@ except:
 tifffile.imwrite(output_file, img)
 
 output_file_binary = os.path.join(
-    OUTPUT_DIR,
-    f'ilastik',
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
+    output_folder_sequence,
     f"ilastik_model_{os.path.basename(model_path).replace('.ilp', '')}_threshold_{binarize_threshold}",
     os.path.basename(input_file)
 )

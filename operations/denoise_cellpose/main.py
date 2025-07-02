@@ -18,6 +18,7 @@ class denoise_cellpose(ImageOperation):
         super().__init__(input, output, **kwargs)
         self.name = 'denoise_cellpose'
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.sequence = ",".join([self.metadata.get("sequence", ""), self.name])
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', get_user(self.input))
@@ -25,14 +26,19 @@ class denoise_cellpose(ImageOperation):
         self.model = kwargs.get('model', 'denoise_cyto3')
         self.diameter = int(kwargs.get('diameter', 100))
 
-        self.output_operation_folder = os.path.join(self.output, self.name)
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
-        self.save_folder = os.path.join(
-            self.output_operation_folder,
+        output_operation_folder = os.path.join(self.output, self.name)
+        output_folder_sequence = os.path.join(
+            output_operation_folder,
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.channel}",
+            f"{self.sequence}"
+        )
+        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+        self.save_folder = os.path.join(
+            output_folder_sequence,
             f"cellpose_model_{self.model}_diameter_{self.diameter}"
         )
+        self.save_folder_uint = self.save_folder + "_uint"
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Denoise prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
@@ -40,6 +46,8 @@ class denoise_cellpose(ImageOperation):
             os.makedirs(self.jobs_folder)
         if not os.path.exists(self.save_folder):
             os.makedirs(self.save_folder)
+        if not os.path.exists(self.save_folder_uint):
+            os.makedirs(self.save_folder_uint)
 
     def run(self):
         print("Running cellpose in chunks")
@@ -49,10 +57,8 @@ class denoise_cellpose(ImageOperation):
 
     def create_provenance(self):
         source = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
-        source_provenance = json.load(open(source, 'r'))
-        base_output_dir = source_provenance['base_output_dir']
-        base_input_dir = source_provenance['base_input_dir']
-        sequence = ",".join([source_provenance.get("sequence", ""), self.name])
+        base_output_dir = self.metadata['base_output_dir']
+        base_input_dir = self.metadata['base_input_dir']
         provenance = {
             "input": {
                 "type": "tiff_series",
@@ -71,14 +77,14 @@ class denoise_cellpose(ImageOperation):
             "source": source,  # input provenance file
             "channel": self.channel,
             "resolution_level": self.resolution_level,
-            "resolution": source_provenance['resolution'],
-            "shape": source_provenance['shape'],
-            "orientation": source_provenance['orientation'],
+            "resolution": self.metadata['resolution'],
+            "shape": self.metadata['shape'],
+            "orientation": self.metadata['orientation'],
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": sequence
+            "sequence": self.sequence
         }
-        provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
+        provenance_file_path = os.path.join(self.save_folder_uint, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
         return provenance_file_path
@@ -87,6 +93,9 @@ class denoise_cellpose(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "run_all_steps.py")
+        path_parts = self.output.split('/')
+        user_pos = path_parts.index(self.user)
+        experiment = "_".join(path_parts[user_pos + 1:])
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
@@ -100,11 +109,13 @@ class denoise_cellpose(ImageOperation):
             f.write(f'python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
-            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
             f.write(' ')
             f.write(
                 f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.model} {str(self.diameter)}'
             )
+            f.write(' ')
+            f.write(f'{experiment}')
             f.write('\n')
 
         extra_args = {}

@@ -16,9 +16,12 @@ from utils.slurm import submit_slurm_array, split_slurm_array
 class ilastik(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "ilastik"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         if not self.output:
             self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
+        self.sequence = ",".join([self.metadata.get('sequence', ''), self.name])
+
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', get_user(self.input))
@@ -26,12 +29,16 @@ class ilastik(ImageOperation):
         self.model = kwargs['model_path']  # TODO no default model
         self.binarize_threshold = kwargs.get('binarize_threshold', 0.5)
 
-        self.output_operation_folder = os.path.join(self.output, 'ilastik')
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
-        self.save_folder = os.path.join(
-            self.output_operation_folder,
+        output_operation_folder = os.path.join(self.output, self.name)
+        self.output_folder_sequence = os.path.join(
+            output_operation_folder,
             f"resolution_level_{self.resolution_level}",
             f"channel_{self.channel}",
+            f"{self.sequence}"
+        )
+        self.jobs_folder = os.path.join(self.output_folder_sequence, "slurm_jobs")
+        self.save_folder = os.path.join(
+            self.output_folder_sequence,
             f"ilastik_model_{os.path.basename(self.model).replace('.ilp', '')}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
@@ -42,9 +49,7 @@ class ilastik(ImageOperation):
         if not os.path.exists(self.save_folder):
             os.makedirs(self.save_folder)
         binary_save_folder = os.path.join(
-            self.output_operation_folder,
-            f"resolution_level_{self.resolution_level}",
-            f"channel_{self.channel}",
+            self.output_folder_sequence,
             f"ilastik_model_{os.path.basename(self.model).replace('.ilp', '')}_threshold_{self.binarize_threshold}"
         )
         if not os.path.exists(binary_save_folder):
@@ -57,7 +62,6 @@ class ilastik(ImageOperation):
         return provenance_file_path, job_ids
 
     def create_provenance(self):
-        sequence = ",".join([self.metadata.get('sequence', ''), 'ilastik'])
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -77,7 +81,7 @@ class ilastik(ImageOperation):
             "resolution_level": self.resolution_level,
             "base_output_dir": self.metadata['out_name'],
             "base_input_dir": self.input,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
@@ -103,7 +107,7 @@ class ilastik(ImageOperation):
             f.write(' ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
-            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')
             f.write(' ')
             f.write(str(self.resolution_level))
             f.write(' ')

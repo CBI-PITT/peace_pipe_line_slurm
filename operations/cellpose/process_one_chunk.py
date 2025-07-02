@@ -28,10 +28,10 @@ os.umask(settings.UMASK)
 
 def extract_chunk_from_imaris_by_number(number):
     print("Extracting chunks from the imaris file")
-    chunk_file = os.path.join(CHUNKS_FOLDER, f"chunk_{str(number).zfill(5)}.tif")
+    chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
     if os.path.exists(chunk_file):
         return
-    chunk_indices_path = os.path.join(CHUNKS_FOLDER, 'chunk_indices.npy')
+    chunk_indices_path = os.path.join(chunks_folder, 'chunk_indices.npy')
     chunk_indices = np.load(chunk_indices_path, allow_pickle=True)
     slices = chunk_indices[number]
     ims_file = ims(metadata['source'], ResolutionLevelLock=resolution_level)
@@ -49,13 +49,13 @@ def extract_chunk_from_tiff_series_by_number(number):
     from dask import array as da
     from dask import delayed
 
-    chunk_file = os.path.join(CHUNKS_FOLDER, f"chunk_{str(number).zfill(5)}.tif")
+    chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
     if os.path.exists(chunk_file):
         return
 
     # Get a sorted list of all image file paths
     image_files = sorted(
-        [os.path.join(INPUT_DIR, f) for f in os.listdir(INPUT_DIR) if f.endswith(('.tif', '.tiff'))]
+        [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith(('.tif', '.tiff'))]
     )
     z, y, x = metadata['shape']
 
@@ -71,7 +71,7 @@ def extract_chunk_from_tiff_series_by_number(number):
     # Check the resulting array shape and type
     print(stacked_array.shape)
 
-    chunk_indices_path = os.path.join(CHUNKS_FOLDER, 'chunk_indices.npy')
+    chunk_indices_path = os.path.join(chunks_folder, 'chunk_indices.npy')
     chunk_indices = np.load(chunk_indices_path, allow_pickle=True)
     slices = chunk_indices[number]
     chunk = stacked_array[tuple(slices)]
@@ -81,7 +81,7 @@ def extract_chunk_from_tiff_series_by_number(number):
 
 
 def write_detection_task_for_slurm(chunk_number, output_path):
-    input_file = os.path.join(CHUNKS_FOLDER, f"chunk_{str(chunk_number).zfill(5)}.tif")
+    input_file = os.path.join(chunks_folder, f"chunk_{str(chunk_number).zfill(5)}.tif")
     output_dir = segmentation_folder
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "do_cellpose.py")
@@ -143,7 +143,7 @@ def segment_one_chunk(chunk_number):
 
 def delete_extracted_chunk_by_number(number):
     import time
-    chunk_file = os.path.join(CHUNKS_FOLDER, f"chunk_{str(number).zfill(5)}.tif")
+    chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
     detections_file_name = os.path.join(segmentation_folder, f"mask_chunk_{str(number).zfill(5)}.tif")
     while not os.path.exists(detections_file_name):
         time.sleep(10)
@@ -175,8 +175,8 @@ def extract_detect_delete(number):
     # print("Deleted")
 
 
-INPUT_DIR = sys.argv[1]  # TODO: this can be read directly from the JSON file
-OUTPUT_DIR = sys.argv[2]
+input_dir = sys.argv[1]  # TODO: this can be read directly from the JSON file
+output_folder_sequence = sys.argv[2]
 resolution_level = int(sys.argv[3])
 signal_channel = int(sys.argv[4])
 chunk_number = int(sys.argv[5])
@@ -184,22 +184,15 @@ model = sys.argv[6]
 username = sys.argv[7]
 priority = sys.argv[8]
 
-metadata = json.load(open(os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
 
 print("source", source)
 
-jobs_folder = os.path.join(OUTPUT_DIR, "cellpose", "slurm_jobs")
+jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
 
-OUTPUT_DIR = os.path.join(
-    OUTPUT_DIR,
-    'cellpose',
-    f'resolution_level_{resolution_level}',
-    f'channel_{signal_channel}'
-    # f"cellpose_model_{model}",
-)
-CHUNKS_FOLDER = os.path.join(OUTPUT_DIR, "chunks")
-segmentation_folder = os.path.join(OUTPUT_DIR, f"cellpose_model_{model}", "segmentation")
+chunks_folder = os.path.join(output_folder_sequence, "chunks")
+segmentation_folder = os.path.join(output_folder_sequence, f"cellpose_model_{model}", "segmentation")
 if not os.path.exists(segmentation_folder):
     os.makedirs(segmentation_folder)
     # os.chmod(segmentation_folder, 0o774)

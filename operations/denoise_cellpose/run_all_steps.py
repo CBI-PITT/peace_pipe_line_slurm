@@ -23,9 +23,6 @@ from utils.slurm import split_slurm_array, submit_slurm_array
 
 
 def find_min_max(pth):
-    # imgs = sorted(glob(os.path.join(pth, "*.tif")))
-    # img_stack = np.stack([tifffile.imread(img) for img in imgs])
-    # return img_stack.min(), img_stack.max()
     npys = sorted(glob(os.path.join(pth, "*.npy")))
     npy_stack = np.stack([np.load(f) for f in npys])
     print("Shape of npy stack", npy_stack.shape)
@@ -56,7 +53,7 @@ def submit_denoising_job_array():
         f.write('\n')
         f.write(f'python {slurm_script}')
         f.write(' ')
-        f.write(INPUT_DIR if ' ' not in INPUT_DIR else f'"{INPUT_DIR}"')
+        f.write(input_dir if ' ' not in input_dir else f'"{input_dir}"')
         f.write(' ')
         f.write(save_folder if ' ' not in save_folder else f'"{save_folder}"')
         f.write(' ')
@@ -226,30 +223,24 @@ def submit_min_max_job_array(input_dir, out_dir):
     return job_ids
 
 
-INPUT_DIR = sys.argv[1]
-OUTPUT_DIR = sys.argv[2]
+input_dir = sys.argv[1]
+save_folder = sys.argv[2]
 resolution_level = int(sys.argv[3])
 channel = int(sys.argv[4])
 username = sys.argv[5]
 priority = sys.argv[6]
 model = sys.argv[7]
 diameter = int(sys.argv[8])
+experiment = sys.argv[9]
 
-metadata = json.load(open(os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 z_layers = metadata['shape'][-3]
 
-output_operation_folder = os.path.join(OUTPUT_DIR, "denoise_cellpose")
-jobs_folder = os.path.join(output_operation_folder, "slurm_jobs")
-save_folder = os.path.join(
-    output_operation_folder,
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
-    f"cellpose_model_{model}_diameter_{diameter}"
-)
+output_folder_sequence = Path(save_folder).parent
+jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+
 min_max_folder = os.path.join(
-    output_operation_folder,
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
+    output_folder_sequence,
     'min_max_raw'
 )
 try:
@@ -258,9 +249,7 @@ except:
     pass
 
 min_max_folder_denoised = os.path.join(
-    output_operation_folder,
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
+    output_folder_sequence,
     f'min_max_denoised_model_{model}_diameter_{diameter}'
 )
 try:
@@ -271,14 +260,12 @@ except:
 base_input_dir = metadata['base_input_dir']
 
 if not base_input_dir:
-    base_input_dir = INPUT_DIR
+    base_input_dir = input_dir
 base_metadata = json.load(open(os.path.join(base_input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source_path = base_metadata['source']
 
 min_max_raw_npy = os.path.join(
-    output_operation_folder,
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
+    output_folder_sequence,
     "min_max_raw.npy"
 )
 if os.path.exists(min_max_raw_npy):
@@ -286,7 +273,7 @@ if os.path.exists(min_max_raw_npy):
     stack_min, stack_max = min_max_raw[0], min_max_raw[1]
 else:
     print("Calculating min and max")
-    submit_min_max_job_array(INPUT_DIR, min_max_folder)
+    submit_min_max_job_array(input_dir, min_max_folder)
 
     finished_planes = len(glob(os.path.join(min_max_folder, '*.npy')))
     while finished_planes < z_layers:
@@ -313,9 +300,7 @@ while finished_planes < z_layers:
     finished_planes = len(glob(os.path.join(save_folder, '*.tif')))
 
 min_max_denoised_npy = os.path.join(
-    output_operation_folder,
-    f'resolution_level_{resolution_level}',
-    f'channel_{channel}',
+    output_folder_sequence,
     f"min_max_{model}.npy"
 )
 
@@ -350,7 +335,17 @@ while finished_planes < z_layers:
     finished_planes = len(glob(os.path.join(save_folder_uint, '*.tif')))
 
 # move float data to trash
-trash_location = os.path.join(settings.TRASH_FOLDER, username, os.path.basename(OUTPUT_DIR), os.path.basename(save_folder))
+trash_location = os.path.join(settings.TRASH_FOLDER, username, experiment, os.path.basename(save_folder))
 if not os.path.exists(trash_location):
     os.makedirs(trash_location)
 shutil.move(save_folder, trash_location)
+
+# move min max data to trash
+trash_location = os.path.join(settings.TRASH_FOLDER, username, experiment, os.path.basename(min_max_folder))
+if not os.path.exists(trash_location):
+    os.makedirs(trash_location)
+shutil.move(min_max_folder, trash_location)
+trash_location = os.path.join(settings.TRASH_FOLDER, username, experiment, os.path.basename(min_max_folder_denoised))
+if not os.path.exists(trash_location):
+    os.makedirs(trash_location)
+shutil.move(min_max_folder_denoised, trash_location)

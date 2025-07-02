@@ -18,6 +18,7 @@ class stretch_contrast(ImageOperation):
         super().__init__(input, output, **kwargs)
         self.name = 'stretch_contrast'
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.sequence = ",".join([self.metadata.get("sequence", ""), self.name])
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
         self.user = kwargs.get('user', get_user(self.input))
@@ -25,13 +26,17 @@ class stretch_contrast(ImageOperation):
         self.percentile_low = kwargs.get('percentile_low', 2)
         self.percentile_high = kwargs.get('percentile_high', 98)
 
-        self.output_operation_folder = os.path.join(self.output, self.name)
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        output_operation_folder = os.path.join(self.output, self.name)
+        output_folder_sequence = os.path.join(
+            output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"{self.sequence}"
+        )
+        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
         self.extracted_tiffs_folder = os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{self.channel}')
         self.save_folder = os.path.join(
-            self.output_operation_folder,
-            f'resolution_level_{self.resolution_level}',
-            f'channel_{self.channel}',
+            output_folder_sequence,
             f"contrast_stretched_{self.percentile_low}_{self.percentile_high}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
@@ -50,10 +55,8 @@ class stretch_contrast(ImageOperation):
 
     def create_provenance(self):
         source = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
-        source_provenance = json.load(open(source, 'r'))
-        base_output_dir = source_provenance['base_output_dir']
-        base_input_dir = source_provenance['base_input_dir']
-        sequence = ",".join([source_provenance.get("sequence", ""), self.name])
+        base_output_dir = self.metadata['base_output_dir']
+        base_input_dir = self.metadata['base_input_dir']
         provenance = {
             "input": {
                 "type": "tiff_series",
@@ -70,12 +73,12 @@ class stretch_contrast(ImageOperation):
             "source": source,  # input provenance file
             "channel": self.channel,
             "resolution_level": self.resolution_level,
-            "resolution": source_provenance['resolution'],
-            "shape": source_provenance['shape'],
-            "orientation": source_provenance['orientation'],
+            "resolution": self.metadata['resolution'],
+            "shape": self.metadata['shape'],
+            "orientation": self.metadata['orientation'],
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:

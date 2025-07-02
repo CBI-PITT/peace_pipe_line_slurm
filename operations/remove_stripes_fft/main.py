@@ -18,6 +18,7 @@ class remove_stripes_fft(ImageOperation):
         super().__init__(input, output, **kwargs)
         self.name = 'remove_stripes_fft'
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        self.sequence = ",".join([self.metadata.get("sequence", ""), self.name])
         self.channel = self.metadata['channel']
         self.resolution_level = self.metadata['resolution_level']
         self.user = kwargs.get('user', get_user(self.input))
@@ -25,13 +26,15 @@ class remove_stripes_fft(ImageOperation):
         self.stripe_direction = kwargs.get('stripe_direction', 'v')
         self.composites_dir = kwargs.get('composites_dir')
 
-        self.output_operation_folder = os.path.join(self.output, self.name)
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
-        self.save_folder = os.path.join(
-            self.output_operation_folder,
-            f'resolution_level_{self.resolution_level}',
-            f'channel_{self.channel}',
+        output_operation_folder = os.path.join(self.output, self.name)
+        output_folder_sequence = os.path.join(
+            output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"{self.sequence}"
         )
+        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+        self.save_folder = os.path.join(output_folder_sequence, 'fft_corrected')
         self.prerequisites = kwargs.get('prerequisites', [])
         print("FFT stripes removal prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
@@ -47,11 +50,8 @@ class remove_stripes_fft(ImageOperation):
         return provenance_file_path, job_ids
 
     def create_provenance(self):
-        source = os.path.join(self.input, f'.{settings.INFO_FILE_NAME}')
-        source_provenance = json.load(open(source, 'r'))
-        base_output_dir = source_provenance['base_output_dir']
-        base_input_dir = source_provenance['base_input_dir']
-        sequence = ",".join([source_provenance.get("sequence", ""), self.name])
+        base_output_dir = self.metadata['base_output_dir']
+        base_input_dir = self.metadata['base_input_dir']
         provenance = {
             "input": {
                 "type": "tiff_series",
@@ -66,15 +66,15 @@ class remove_stripes_fft(ImageOperation):
                     "stripe_direction": self.stripe_direction
                 }
             },
-            "source": source,  # input provenance file
+            "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
             "channel": self.channel,
             "resolution_level": self.resolution_level,
-            "resolution": source_provenance['resolution'],
-            "shape": source_provenance['shape'],
-            "orientation": source_provenance['orientation'],
+            "resolution": self.metadata['resolution'],
+            "shape": self.metadata['shape'],
+            "orientation": self.metadata['orientation'],
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
@@ -98,7 +98,7 @@ class remove_stripes_fft(ImageOperation):
             f.write(f'python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
-            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
             f.write(' ')
             f.write(
                 f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.stripe_direction}')

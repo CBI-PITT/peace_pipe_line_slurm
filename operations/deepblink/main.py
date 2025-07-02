@@ -24,21 +24,29 @@ class deepblink(ImageOperation):
     """
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "deepblink"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         if not self.output:
             self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
-        self.signal_channel = int(self.metadata['channel'])
+        self.sequence = ",".join([self.metadata.get("sequence", ""), self.name])
+        self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.with_dbscan = kwargs.get('with_dbscan', False)
-        self.output_operation_folder = os.path.join(self.output, 'deepblink')
-        self.chunks_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "deepblink_chunks")
-        self.jobs_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "slurm_jobs")
-        self.detection_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "detection")
-        self.napari_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "detection_napari")
+        output_operation_folder = os.path.join(self.output, self.name)
+        self.output_folder_sequence = os.path.join(
+            output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"{self.sequence}"
+        )
+        self.chunks_folder = os.path.join(self.output_folder_sequence, "deepblink_chunks")
+        self.jobs_folder = os.path.join(self.output_folder_sequence, "slurm_jobs")
+        self.detection_folder = os.path.join(self.output_folder_sequence, "detection")
+        self.napari_folder = os.path.join(self.output_folder_sequence, "detection_napari")
         self.out_csv_name = "merged_dbscan_df.csv" if self.with_dbscan else "merged_df.csv"
-        self.out_csv_path = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", self.out_csv_name)
+        self.out_csv_path = os.path.join(self.output_folder_sequence, self.out_csv_name)
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Deepblink prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
@@ -50,7 +58,7 @@ class deepblink(ImageOperation):
             os.makedirs(self.detection_folder)
         if not os.path.exists(self.napari_folder):
             os.makedirs(self.napari_folder)
-        self.dbscan_folder = os.path.join(self.output_operation_folder, f"resolution_level_{self.resolution_level}", f"channel_{self.signal_channel}", "dbscan")
+        self.dbscan_folder = os.path.join(self.output_folder_sequence, "dbscan")
         if self.with_dbscan and not os.path.exists(self.dbscan_folder):
             os.makedirs(self.dbscan_folder)
 
@@ -81,9 +89,9 @@ class deepblink(ImageOperation):
             f.write(f'python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
-            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.signal_channel} {self.user} {int(self.with_dbscan)} {self.priority}')
+            f.write(f'{self.resolution_level} {self.channel} {self.user} {int(self.with_dbscan)} {self.priority}')
             f.write('\n')
 
         extra_args = {}
@@ -102,7 +110,11 @@ class deepblink(ImageOperation):
         return job_ids
 
     def create_provenance(self):
-        sequence = ",".join([self.metadata.get("sequence", ""), "deepblink"])
+        try:
+            base_output_dir = self.metadata["base_output_dir"]
+        except KeyError:
+            base_output_dir = self.metadata["out_name"]
+
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -118,18 +130,13 @@ class deepblink(ImageOperation):
                 }
             },
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
-            "channel": self.signal_channel,
+            "channel": self.channel,
             "resolution_level": self.resolution_level,
-            "base_output_dir": self.metadata.get('base_output_dir', self.metadata['out_name']),
+            "base_output_dir": base_output_dir,
             "base_input_dir": self.input,
-            "sequence": sequence
+            "sequence": self.sequence
         }
-        provenance_file_path = os.path.join(
-            self.output_operation_folder,
-            f'resolution_level_{self.resolution_level}',
-            f"channel_{self.signal_channel}",
-            f'.{settings.INFO_FILE_NAME}'
-        )
+        provenance_file_path = os.path.join(self.output_folder_sequence, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
 

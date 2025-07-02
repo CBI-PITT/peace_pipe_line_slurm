@@ -32,10 +32,12 @@ class brainreg(ImageOperation):
     """
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
+        self.name = "brainreg"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         if not self.output:
             self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
-        self.background_channel = int(self.metadata['channel'])
+        self.sequence = ",".join([self.metadata.get('sequence', ""), self.name])
+        self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
         self.resolution = self.metadata['resolution']
         self.user = kwargs.get('user', get_user(self.input))
@@ -46,17 +48,21 @@ class brainreg(ImageOperation):
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Brainreg prerequisites", self.prerequisites)
 
-        self.output_operation_folder = os.path.join(self.output, 'brainreg')
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        output_operation_folder = os.path.join(self.output, self.name)
+        output_folder_sequence = os.path.join(
+            output_operation_folder,
+            f"resolution_level_{self.resolution_level}",
+            f"channel_{self.channel}",
+            f"{self.sequence}"
+        )
+        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
         if self.metadata.get('sequence'):
             previous_operations = self.metadata['sequence'].split(',')
             previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
         else:
             previous_operation = ""
         self.registration_folder = os.path.join(
-            self.output_operation_folder,
-            f"resolution_level_{self.resolution_level}",
-            f"channel_{self.background_channel}",
+            output_folder_sequence,
             f"registration_{self.atlas}{previous_operation}"
         )
         os.umask(settings.UMASK)
@@ -72,7 +78,6 @@ class brainreg(ImageOperation):
         return provenance_file_path, job_ids  # return path to provenance and submitted job IDs
 
     def create_provenance(self):
-        sequence = ",".join([self.metadata.get('sequence', ""), 'brainreg'])
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -90,36 +95,36 @@ class brainreg(ImageOperation):
                 }
             },
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
-            "channel": self.background_channel,
+            "channel": self.channel,
             "resolution_level": self.resolution_level,
             "base_output_dir": self.metadata.get('out_name', self.metadata['base_output_dir']),
             "base_input_dir": self.input,
-            "sequence": sequence
+            "sequence": self.sequence
         }
         provenance_file_path = os.path.join(self.registration_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
         return provenance_file_path
 
-    def calculate_resolution_level(self):
-        atlas = BrainGlobeAtlas(self.atlas)
-        min_atlas_resolution = np.min(np.array(atlas.resolution))
-        resolution_level = 0
-        for rl in range(self.ims_file.ResolutionLevels-1, 0, -1):
-            resolution = self.ims_file.metaData[(rl, 0, self.background_channel, 'resolution')][-3:]
-            if np.all(np.round(np.array(resolution)) <= min_atlas_resolution):
-                resolution_level = rl
-                break
-        self.resolution_level = resolution_level
-        self.resolution = self.ims_file.metaData[(resolution_level, 0, self.background_channel, 'resolution')][-3:]
-        print("Resolution level", resolution_level)
-        print(self.ims_file.metaData[(resolution_level, 0, self.background_channel, 'resolution')])
-        self.stack_to_register = os.path.join(self.output_operation_folder, f'resolution_level_{resolution_level}', f'channel_{self.background_channel}')
-        if not os.path.exists(self.stack_to_register):
-            os.makedirs(self.stack_to_register)
+    # def calculate_resolution_level(self):
+    #     atlas = BrainGlobeAtlas(self.atlas)
+    #     min_atlas_resolution = np.min(np.array(atlas.resolution))
+    #     resolution_level = 0
+    #     for rl in range(self.ims_file.ResolutionLevels-1, 0, -1):
+    #         resolution = self.ims_file.metaData[(rl, 0, self.channel, 'resolution')][-3:]
+    #         if np.all(np.round(np.array(resolution)) <= min_atlas_resolution):
+    #             resolution_level = rl
+    #             break
+    #     self.resolution_level = resolution_level
+    #     self.resolution = self.ims_file.metaData[(resolution_level, 0, self.channel, 'resolution')][-3:]
+    #     print("Resolution level", resolution_level)
+    #     print(self.ims_file.metaData[(resolution_level, 0, self.channel, 'resolution')])
+    #     self.stack_to_register = os.path.join(self.output_operation_folder, f'resolution_level_{resolution_level}', f'channel_{self.channel}')
+    #     if not os.path.exists(self.stack_to_register):
+    #         os.makedirs(self.stack_to_register)
 
     def run_registration(self):
-        path_to_task = os.path.join(self.jobs_folder, f"register_rl{self.resolution_level}_c{self.background_channel}_to_{self.atlas}.sh")
+        path_to_task = os.path.join(self.jobs_folder, f"register_rl{self.resolution_level}_c{self.channel}_to_{self.atlas}.sh")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')

@@ -85,9 +85,9 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         f.write("source /h20/home/lab/miniconda3/bin/activate peace")
         f.write('\n')
         f.write(f'python {slurm_script} ')
-        f.write(INPUT_DIR)
+        f.write(input_dir)
         f.write(' ')
-        f.write(OUTPUT_DIR)
+        f.write(output_folder_sequence)
         f.write(' ')
         f.write(f'{resolution_level} {signal_channel} {username} {with_dbscan} {priority} $SLURM_ARRAY_TASK_ID')
         f.write('\n')
@@ -152,7 +152,7 @@ def merge_df():
         df = pd.concat([df, chunk_df_corrected])
 
     print("Saving df")
-    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_df.csv'), index=False)
+    df.to_csv(os.path.join(output_folder_sequence, 'merged_df.csv'), index=False)
 
 
 def merge_dbscan_df():
@@ -180,23 +180,22 @@ def merge_dbscan_df():
         df = pd.concat([df, chunk_df_corrected])
 
     print("Saving df")
-    df.to_csv(os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_dbscan_df.csv'), index=False)
+    df.to_csv(os.path.join(output_folder_sequence, 'merged_dbscan_df.csv'), index=False)
 
 
-INPUT_DIR = sys.argv[1]
-OUTPUT_DIR = sys.argv[2]
+input_dir = sys.argv[1]
+output_folder_sequence = sys.argv[2]
 resolution_level = int(sys.argv[3])
 signal_channel = int(sys.argv[4])
 username = sys.argv[5]
 with_dbscan = int(sys.argv[6])
 priority = sys.argv[7]
 
-metadata = json.load(open(os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
-output_operation_folder = os.path.join(OUTPUT_DIR, 'deepblink')
-napari_folder = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", "detection_napari")
-chunks_folder = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", "deepblink_chunks")
-jobs_folder = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", "slurm_jobs")
-dbscan_folder = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", "dbscan")
+metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
+napari_folder = os.path.join(output_folder_sequence, "detection_napari")
+chunks_folder = os.path.join(output_folder_sequence, "deepblink_chunks")
+jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+dbscan_folder = os.path.join(output_folder_sequence, "dbscan")
 
 number_of_chunks = get_chunking()
 print("number of chunks", number_of_chunks)
@@ -209,7 +208,7 @@ while chunks_done < number_of_chunks:
     chunks_done = len(glob(os.path.join(napari_folder, "napari_chunk_*.csv")))
 
 # merge the dataframes with points for all chunks
-merged_csv = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_df.csv')
+merged_csv = os.path.join(output_folder_sequence, 'merged_df.csv')
 if not os.path.exists(merged_csv):
     merge_df()
 
@@ -220,7 +219,7 @@ if with_dbscan:
         time.sleep(120)
         chunks_done = len(glob(os.path.join(dbscan_folder, "dbscan_napari_chunk_*.csv")))
     # merge the DBSCAN dataframes with points for all chunks
-    merged_dbscan_csv = os.path.join(output_operation_folder, f"resolution_level_{resolution_level}", f"channel_{signal_channel}", 'merged_dbscan_df.csv')
+    merged_dbscan_csv = os.path.join(output_folder_sequence, 'merged_dbscan_df.csv')
     if not os.path.exists(merged_dbscan_csv):
         merge_dbscan_df()
 

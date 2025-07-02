@@ -41,22 +41,22 @@ def launch_job_array():
         f.write('\n')
         f.write(f'python {slurm_script}')
         f.write(' ')
-        f.write(INPUT_TIFF_STACK_DIR)
+        f.write(input_tiff_stack_dir)
         f.write(' ')
-        f.write(OUTPUT_DIR)
+        f.write(save_folder)
         f.write(' ')
-        f.write(POINTS_DF)
+        f.write(points_df)
         f.write(' ')
-        f.write(MASKS_DIR)
+        f.write(masks_dir)
         f.write(' ')
         f.write('$SLURM_ARRAY_TASK_ID')
         f.write('\n')
 
-    already_done = glob(os.path.join(OUTPUT_DIR, "*.csv"))
+    already_done = glob(os.path.join(save_folder, "*.csv"))
     if len(already_done):
         print("Partially processed")
         print("Processed", len(already_done), "of", z_layers)
-        files = os.listdir(OUTPUT_DIR)
+        files = os.listdir(save_folder)
         pattern = "_z(\d+)\.csv"
         numbers = [re.findall(pattern, x)[0] for x in files]
         numbers = set(map(int, numbers))
@@ -83,7 +83,7 @@ def launch_job_array():
 def merge_df():
     df_column_names = ['index', 'axis-0', 'axis-1', 'axis-2']
     df = pd.DataFrame(columns=df_column_names)
-    csv_files = sorted(glob(os.path.join(OUTPUT_DIR, '*.csv')))
+    csv_files = sorted(glob(os.path.join(save_folder, '*.csv')))
     # print("CSV files", len(csv_files), csv_files[:3])
     for z in csv_files:
         print("Processing", z)
@@ -93,32 +93,31 @@ def merge_df():
         df = pd.concat([df, chunk_df])
 
     print("Saving df")
-    df.to_csv(os.path.join(str(Path(OUTPUT_DIR).parent), f'{os.path.basename(OUTPUT_DIR)}.csv'), index=False)
+    df.to_csv(os.path.join(str(Path(save_folder).parent), f'{os.path.basename(save_folder)}.csv'), index=False)
 
 
-INPUT_TIFF_STACK_DIR = sys.argv[1]
-OUTPUT_DIR = sys.argv[2]
-POINTS_DF = sys.argv[3]
-MASKS_DIR = sys.argv[4]
-GLOBAL_OUTPUT = sys.argv[5]
+input_tiff_stack_dir = sys.argv[1]
+save_folder = sys.argv[2]
+points_df = sys.argv[3]
+masks_dir = sys.argv[4]
 username = sys.argv[6]
 priority = sys.argv[7]
 
-metadata = json.load(open(os.path.join(INPUT_TIFF_STACK_DIR, f'.{settings.INFO_FILE_NAME}'), 'r'))
+metadata = json.load(open(os.path.join(input_tiff_stack_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 z_layers = metadata['shape'][-3]
 resolution_level = metadata['resolution_level']
 channel = metadata['channel']
 
-output_operation_folder = os.path.join(GLOBAL_OUTPUT, 'delete_background_detections')
-jobs_folder = os.path.join(output_operation_folder, "slurm_jobs")
+output_folder_sequence = Path(save_folder).parent
+jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
 
 launch_job_array()
 
-layers_done = len(glob(os.path.join(OUTPUT_DIR, "*.csv")))
+layers_done = len(glob(os.path.join(save_folder, "*.csv")))
 while layers_done < z_layers:
     print(f"Layers done: {layers_done} of {z_layers}")
     time.sleep(120)
-    layers_done = len(glob(os.path.join(OUTPUT_DIR, "*.csv")))
+    layers_done = len(glob(os.path.join(save_folder, "*.csv")))
 
 # merge the dataframes with points for all chunks
 merge_df()
