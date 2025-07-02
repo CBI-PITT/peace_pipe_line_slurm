@@ -61,6 +61,10 @@ class deepblink(ImageOperation):
         self.dbscan_folder = os.path.join(self.output_folder_sequence, "dbscan")
         if self.with_dbscan and not os.path.exists(self.dbscan_folder):
             os.makedirs(self.dbscan_folder)
+            os.makedirs(os.path.join(self.jobs_folder, 'logs_dbscan'), exist_ok=True)
+        os.makedirs(os.path.join(self.jobs_folder, 'logs_process_one_chunk'), exist_ok=True)
+        os.makedirs(os.path.join(self.jobs_folder, 'logs_deepblink'), exist_ok=True)
+        os.makedirs(os.path.join(self.jobs_folder, 'logs_napari'), exist_ok=True)
 
     def run(self):
         print("Running deepblink in chunks")

@@ -17,7 +17,7 @@ project_root = operations_folder.parent
 sys.path.append(str(project_root))
 
 from analysis import settings
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import split_slurm_array, submit_slurm_array, parse_slurm_errors
 
 os.umask(settings.UMASK)
 
@@ -121,3 +121,5 @@ while layers_done < z_layers:
 
 # merge the dataframes with points for all chunks
 merge_df()
+has_errors = parse_slurm_errors(jobs_folder)
+print("Errors found:", has_errors)

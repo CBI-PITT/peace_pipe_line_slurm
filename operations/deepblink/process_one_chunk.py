@@ -86,7 +86,7 @@ def write_detection_task_for_slurm(chunk_number, output_path):
         f.write('\n')
         f.write(f"#SBATCH -J {username}-deepblink-gpu")
         f.write('\n')
-        f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
+        f.write(f"#SBATCH -o {jobs_folder}/logs_deepblink/slurm_deepblink_chunk_{str(chunk_number).zfill(5)}.out")
         f.write('\n')
         f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate deepblink")
@@ -143,7 +143,7 @@ def convert_one_csv_to_napari_format_by_number(number, prerequisites=None):
         f.write('\n')
         f.write(f"#SBATCH -J {username}-deepblink-napari")
         f.write('\n')
-        f.write(f"#SBATCH -o {jobs_folder}/slurm_napari_%j.out")
+        f.write(f"#SBATCH -o {jobs_folder}/logs_napari/slurm_napari_chunk_{str(number).zfill(5)}.out")
         f.write('\n')
         f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate peace")
@@ -196,7 +196,7 @@ def run_dbscan_on_chunk(chunk_number, prerequisites=None):
         f.write('\n')
         f.write(f"#SBATCH -J {username}-deepblink-dbscan")
         f.write('\n')
-        f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
+        f.write(f"#SBATCH -o {jobs_folder}/logs_dbscan/slurm_dbscan_chunk_{str(chunk_number).zfill(5)}.out")
         f.write('\n')
         f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate dbscan")
@@ -267,6 +267,8 @@ username = sys.argv[5]
 with_dbscan = int(sys.argv[6])
 priority = sys.argv[7]
 chunk_number = int(sys.argv[8])
+
+print("CHUNK", chunk_number)
 
 metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source = metadata['source']

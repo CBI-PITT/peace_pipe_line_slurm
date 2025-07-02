@@ -130,3 +130,60 @@ def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLU
         if job_id:
             job_ids.append(job_id)
     return job_ids
+
+
+def parse_slurm_errors(logs_folder):
+    """
+    Recursively parses SLURM .out log files in the given folder and its subfolders.
+    Moves any files containing errors into an 'errors' subfolder at the top level.
+
+    Parameters:
+    logs_folder (str): Path to the folder containing SLURM .out log files.
+    """
+    if not os.path.isdir(logs_folder):
+        raise ValueError(f"Provided path '{logs_folder}' is not a valid directory.")
+
+    errors_folder = os.path.join(logs_folder, "errors")
+    os.makedirs(errors_folder, exist_ok=True)
+
+    # Error indicators: python tracebacks, segfaults, common shell error patterns
+    error_patterns = [
+        r"Traceback \(most recent call last\)",
+        r"Error:",
+        r"Exception:",
+        r"Segmentation fault",
+        r"command not found",
+        r"No such file or directory",
+        r"Permission denied",
+        r"ModuleNotFoundError",
+        r"FileNotFoundError",
+        r"ImportError",
+        r"RuntimeError",
+        r"ValueError",
+        r"OSError",
+    ]
+    error_regex = re.compile("|".join(error_patterns), re.IGNORECASE)
+    error_flag = False
+    for root, _, files in os.walk(logs_folder):
+        for filename in files:
+            if filename.endswith(".out"):
+                file_path = os.path.join(root, filename)
+
+                # Avoid reprocessing files already in the errors folder
+                if os.path.commonpath([file_path, errors_folder]) == errors_folder:
+                    continue
+
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        contents = f.read()
+                        if error_regex.search(contents):
+                            error_flag = True
+                            # Ensure unique filename if subfolders have duplicate names
+                            rel_path = os.path.relpath(file_path, logs_folder)
+                            flat_name = rel_path.replace(os.sep, "__")
+                            dest_path = os.path.join(errors_folder, flat_name)
+                            shutil.move(file_path, dest_path)
+                except Exception as e:
+                    print(f"Could not read {file_path}: {e}")
+
+    return error_flag

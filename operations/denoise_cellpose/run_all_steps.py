@@ -19,7 +19,7 @@ project_root = operations_folder.parent
 sys.path.append(str(project_root))
 
 from analysis import settings
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import split_slurm_array, submit_slurm_array, parse_slurm_errors
 
 
 def find_min_max(pth):
@@ -349,3 +349,6 @@ trash_location = os.path.join(settings.TRASH_FOLDER, username, experiment, os.pa
 if not os.path.exists(trash_location):
     os.makedirs(trash_location)
 shutil.move(min_max_folder_denoised, trash_location)
+
+has_errors = parse_slurm_errors(jobs_folder)
+print("Errors found:", has_errors)

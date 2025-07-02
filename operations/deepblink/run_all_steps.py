@@ -17,7 +17,7 @@ project_root = operations_folder.parent
 sys.path.append(str(project_root))
 
 from analysis import settings
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import split_slurm_array, submit_slurm_array, parse_slurm_errors
 
 os.umask(settings.UMASK)
 
@@ -79,7 +79,7 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         f.write('\n')
         f.write(f"#SBATCH -J {username}-deepblink-cpu")
         f.write('\n')
-        f.write(f"#SBATCH -o {jobs_folder}/slurm_deepblink_cpu_%A_%a.out")
+        f.write(f"#SBATCH -o {jobs_folder}/logs_process_one_chunk/slurm_deepblink_cpu_%A_%a.out")
         f.write('\n')
         f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate peace")
@@ -223,4 +223,6 @@ if with_dbscan:
     if not os.path.exists(merged_dbscan_csv):
         merge_dbscan_df()
 
+has_errors = parse_slurm_errors(jobs_folder)
+print("Errors found:", has_errors)
 print("All done!")
