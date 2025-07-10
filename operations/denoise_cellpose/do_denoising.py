@@ -1,5 +1,6 @@
 import os
 import sys
+from glob import glob
 from pathlib import Path
 
 import numpy as np
@@ -21,7 +22,7 @@ INPUT_DIR = sys.argv[1]
 OUTPUT_DIR = sys.argv[2]
 resolution_level = sys.argv[3]
 channel = sys.argv[4]
-z = sys.argv[5]
+z = int(sys.argv[5])
 MODEL = sys.argv[6]
 DIAMETER = int(sys.argv[7])
 stack_min = int(sys.argv[8])
@@ -45,10 +46,14 @@ print("channel", channel)
 print("z", z)
 print("NPY_DIR", NPY_DIR)
 
-input_file = os.path.join(
-    INPUT_DIR,
-    f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
-)
+# input_file = os.path.join(
+#     INPUT_DIR,
+#     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
+# )
+
+files = sorted(glob(os.path.join(INPUT_DIR, "*.tif")))
+input_file = files[z]
+print("Input file:", input_file)
 
 output_file = os.path.join(
     OUTPUT_DIR,
