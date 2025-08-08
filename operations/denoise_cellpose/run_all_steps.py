@@ -301,7 +301,7 @@ while finished_planes < z_layers:
 
 min_max_denoised_npy = os.path.join(
     output_folder_sequence,
-    f"min_max_{model}.npy"
+    f"min_max_{model}_diameter_{diameter}.npy"
 )
 
 if os.path.exists(min_max_denoised_npy):

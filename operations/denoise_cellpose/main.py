@@ -66,7 +66,7 @@ class denoise_cellpose(ImageOperation):
             },
             "output": {
                 "type": "tiff_series",
-                "path": self.save_folder,
+                "path": self.save_folder_uint,
             },
             "process": {
                 "parameters": {
