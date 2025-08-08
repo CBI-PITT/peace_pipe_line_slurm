@@ -41,7 +41,14 @@ class deepblink(ImageOperation):
             f"channel_{self.channel}",
             f"{self.sequence}"
         )
-        self.chunks_folder = os.path.join(self.output_folder_sequence, "deepblink_chunks")
+        self.chunks_folder = os.path.join(
+            self.metadata["base_output_dir"],
+            f"resolution_level_{self.resolution_level}_chunks",
+            f"channel_{self.channel}",
+            f"{settings.DEEPBLINK_CHUNK_SIZE[0]}x{settings.DEEPBLINK_CHUNK_SIZE[1]}x{settings.DEEPBLINK_CHUNK_SIZE[2]}",
+            f"{self.sequence.replace(self.name, '')}"
+        )
+        # self.chunks_folder = os.path.join(self.output_folder_sequence, "deepblink_chunks")
         self.jobs_folder = os.path.join(self.output_folder_sequence, "slurm_jobs")
         self.detection_folder = os.path.join(self.output_folder_sequence, "detection")
         self.napari_folder = os.path.join(self.output_folder_sequence, "detection_napari")
@@ -94,6 +101,8 @@ class deepblink(ImageOperation):
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
             f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')
+            f.write(' ')
+            f.write(self.chunks_folder if ' ' not in self.chunks_folder else f'"{self.chunks_folder}"')
             f.write(' ')
             f.write(f'{self.resolution_level} {self.channel} {self.user} {int(self.with_dbscan)} {self.priority}')
             f.write('\n')

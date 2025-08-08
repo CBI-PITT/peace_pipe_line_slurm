@@ -20,62 +20,63 @@ sys.path.append(str(project_root))
 
 from analysis import settings
 from utils.slurm import submit_slurm_job
+from utils.chunks import extract_chunk_from_imaris_by_number, extract_chunk_from_tiff_series_by_number
 
 os.umask(settings.UMASK)
 
 
-def extract_chunk_from_imaris_by_number(number):
-    print("Extracting chunks from the imaris file")
-    chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
-    if os.path.exists(chunk_file):
-        return
-    chunk_indices_path = os.path.join(chunks_folder, 'chunk_indices.npy')
-    chunk_indices = np.load(chunk_indices_path, allow_pickle=True)
-    slices = chunk_indices[number]
-    ims_file = ims(metadata['source'], ResolutionLevelLock=resolution_level)
-    ims_file_dask = da.array(ims_file)
-    tiffstack = ims_file_dask[0, signal_channel, :, :, :]
-    chunk = tiffstack[tuple(slices)]
-    print(chunk.shape)
-    chunk = chunk.compute()
-    tifffile.imwrite(chunk_file, chunk)
-
-
-def extract_chunk_from_tiff_series_by_number(number):
-    print("Extracting chunks from the tiff series")
-
-    from dask import array as da
-    from dask import delayed
-
-    chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
-    if os.path.exists(chunk_file):
-        return
-
-    # Get a sorted list of all image file paths
-    image_files = sorted(
-        [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith(('.tif', '.tiff'))]
-    )
-    z, y, x = metadata['shape']
-
-    # Function to load a single image
-    @delayed
-    def read_image(file_path):
-        return tifffile.imread(file_path)
-
-    # Create a Dask array
-    lazy_arrays = [da.from_delayed(read_image(f), shape=(y, x), dtype='uint16') for f in image_files]
-    stacked_array = da.stack(lazy_arrays, axis=0)  # Stack along a new axis to get shape (z, y, x)
-
-    # Check the resulting array shape and type
-    print(stacked_array.shape)
-
-    chunk_indices_path = os.path.join(chunks_folder, 'chunk_indices.npy')
-    chunk_indices = np.load(chunk_indices_path, allow_pickle=True)
-    slices = chunk_indices[number]
-    chunk = stacked_array[tuple(slices)]
-    print(chunk.shape)
-    chunk = chunk.compute()
-    tifffile.imwrite(chunk_file, chunk)
+# def extract_chunk_from_imaris_by_number(number):
+#     print("Extracting chunks from the imaris file")
+#     chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
+#     if os.path.exists(chunk_file):
+#         return
+#     chunk_indices_path = os.path.join(chunks_folder, 'chunk_indices.npy')
+#     chunk_indices = np.load(chunk_indices_path, allow_pickle=True)
+#     slices = chunk_indices[number]
+#     ims_file = ims(metadata['source'], ResolutionLevelLock=resolution_level)
+#     ims_file_dask = da.array(ims_file)
+#     tiffstack = ims_file_dask[0, signal_channel, :, :, :]
+#     chunk = tiffstack[tuple(slices)]
+#     print(chunk.shape)
+#     chunk = chunk.compute()
+#     tifffile.imwrite(chunk_file, chunk)
+#
+#
+# def extract_chunk_from_tiff_series_by_number(number):
+#     print("Extracting chunks from the tiff series")
+#
+#     from dask import array as da
+#     from dask import delayed
+#
+#     chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
+#     if os.path.exists(chunk_file):
+#         return
+#
+#     # Get a sorted list of all image file paths
+#     image_files = sorted(
+#         [os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith(('.tif', '.tiff'))]
+#     )
+#     z, y, x = metadata['shape']
+#
+#     # Function to load a single image
+#     @delayed
+#     def read_image(file_path):
+#         return tifffile.imread(file_path)
+#
+#     # Create a Dask array
+#     lazy_arrays = [da.from_delayed(read_image(f), shape=(y, x), dtype='uint16') for f in image_files]
+#     stacked_array = da.stack(lazy_arrays, axis=0)  # Stack along a new axis to get shape (z, y, x)
+#
+#     # Check the resulting array shape and type
+#     print(stacked_array.shape)
+#
+#     chunk_indices_path = os.path.join(chunks_folder, 'chunk_indices.npy')
+#     chunk_indices = np.load(chunk_indices_path, allow_pickle=True)
+#     slices = chunk_indices[number]
+#     chunk = stacked_array[tuple(slices)]
+#     print(chunk.shape)
+#     chunk = chunk.compute()
+#     tifffile.imwrite(chunk_file, chunk)
 
 
 def write_detection_task_for_slurm(chunk_number, output_path):
@@ -175,9 +176,9 @@ def convert_one_csv_to_napari_format_by_number(number, prerequisites=None):
 
 def extract_chunk_by_number(number):
     if source.endswith('.ims'):
-        extract_chunk_from_imaris_by_number(number)
+        extract_chunk_from_imaris_by_number(number, chunks_folder, source, resolution_level, signal_channel)
     else:
-        extract_chunk_from_tiff_series_by_number(number)
+        extract_chunk_from_tiff_series_by_number(number, chunks_folder, input_dir)
 
 
 def run_dbscan_on_chunk(chunk_number, prerequisites=None):
@@ -231,15 +232,19 @@ def extract_detect_deepblink_delete(number):
 
     print("Chunk number", number)
     chunk_file = os.path.join(chunks_folder, f"chunk_{str(number).zfill(5)}.tif")
-    if not os.path.exists(chunk_file):
+    chunk_json = os.path.join(chunks_folder, f".chunk_{str(number).zfill(5)}.json")
+    if not os.path.exists(chunk_file) or not os.path.exists(chunk_json):
         try:
             extract_chunk_by_number(number)
         except:  # if impossible to extract, create an empty napari-compatible DF
             print(f"EXCEPTION: unable to extract chunk # {number}")
             print(traceback.format_exc())
             save_empty_napari_df()
-            # return
+            return
         print("extracted")
+    chunk_meta = json.load(open(chunk_json, 'r'))
+    if chunk_meta["content"] == "bg":  # this chunk has only background noise
+        return
     detections_file_name = os.path.join(detection_folder, f"chunk_{str(number).zfill(5)}.csv")
     detection_job_ids = []
     if not os.path.exists(detections_file_name):
@@ -261,19 +266,20 @@ def extract_detect_deepblink_delete(number):
 
 input_dir = sys.argv[1]  # TODO: this can be read directly from the JSON file
 output_folder_sequence = sys.argv[2]
-resolution_level = int(sys.argv[3])
-signal_channel = int(sys.argv[4])
-username = sys.argv[5]
-with_dbscan = int(sys.argv[6])
-priority = sys.argv[7]
-chunk_number = int(sys.argv[8])
+chunks_folder = sys.argv[3]
+resolution_level = int(sys.argv[4])
+signal_channel = int(sys.argv[5])
+username = sys.argv[6]
+with_dbscan = int(sys.argv[7])
+priority = sys.argv[8]
+chunk_number = int(sys.argv[9])
 
 print("CHUNK", chunk_number)
 
 metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
 
-chunks_folder = os.path.join(output_folder_sequence, "deepblink_chunks")
+# chunks_folder = os.path.join(output_folder_sequence, "deepblink_chunks")
 jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
 detection_folder = os.path.join(output_folder_sequence, "detection")
 napari_folder = os.path.join(output_folder_sequence, "detection_napari")

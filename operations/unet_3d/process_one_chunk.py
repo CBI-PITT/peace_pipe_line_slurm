@@ -165,19 +165,20 @@ def extract_detect_delete(number):
 
 input_dir = sys.argv[1]  # TODO: this can be read directly from the JSON file
 output_folder_sequence = sys.argv[2]
-resolution_level = int(sys.argv[3])
-signal_channel = int(sys.argv[4])
-chunk_number = int(sys.argv[5])
-model = sys.argv[6]
+chunks_folder = sys.argv[3]
+resolution_level = int(sys.argv[4])
+signal_channel = int(sys.argv[5])
+chunk_number = int(sys.argv[6])
 username = sys.argv[7]
-priority = sys.argv[8]
+model = sys.argv[8]
+priority = sys.argv[9]
 
 metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
 
 jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
 
-chunks_folder = os.path.join(output_folder_sequence, "chunks")
+# chunks_folder = os.path.join(output_folder_sequence, "chunks")
 segmentation_folder = os.path.join(output_folder_sequence, f"model_{os.path.basename(model)}", "segmentation")
 if not os.path.exists(segmentation_folder):
     os.makedirs(segmentation_folder)

@@ -9,7 +9,6 @@ from glob import glob
 import numpy as np
 import pandas as pd
 
-
 from pathlib import Path
 this_script = Path(__file__)
 deepblink_folder = this_script.parent
@@ -73,9 +72,9 @@ def get_chunking():
 def extract_first_chunk():
     source = metadata['source']
     if source.endswith('.ims'):
-        extract_chunk_from_imaris_by_number(0, chunks_folder, metadata['source'], resolution_level, signal_channel)
+        extract_chunk_from_imaris_by_number(0, chunks_folder)
     else:
-        extract_chunk_from_tiff_series_by_number(0, chunks_folder, input_dir)
+        extract_chunk_from_tiff_series_by_number(0, chunks_folder)
 
 
 def submit_detection_cpu_slurm_array(number_of_chunks):
@@ -87,9 +86,9 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
-        f.write(f"#SBATCH -J {username}-deepblink-cpu")
+        f.write(f"#SBATCH -J {username}-3d-unet-cpu")
         f.write('\n')
-        f.write(f"#SBATCH -o {jobs_folder}/logs_process_one_chunk/slurm_deepblink_cpu_%A_%a.out")
+        f.write(f"#SBATCH -o {jobs_folder}/logs_process_one_chunk/slurm-3d-unet-cpu_%A_%a.out")
         f.write('\n')
         f.write('\n')
         f.write("source /h20/home/lab/miniconda3/bin/activate peace")
@@ -101,13 +100,8 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         f.write(' ')
         f.write(chunks_folder)
         f.write(' ')
-        f.write(f'{resolution_level} {signal_channel} {username} {with_dbscan} {priority} $SLURM_ARRAY_TASK_ID')
+        f.write(f'{resolution_level} {channel} $SLURM_ARRAY_TASK_ID {username} {model} {priority}')
         f.write('\n')
-
-    if with_dbscan:
-        save_folder = dbscan_folder
-    else:
-        save_folder = napari_folder
 
     already_done = glob(os.path.join(save_folder, "*.csv"))
 
@@ -138,70 +132,13 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         )
 
 
-def merge_df():
-    df_column_names = ['index', 'axis-0', 'axis-1', 'axis-2']
-    df = pd.DataFrame(columns=df_column_names)
-    csv_files = sorted(glob(os.path.join(napari_folder, 'napari*.csv')))
-    # print("CSV files", len(csv_files), csv_files[:3])
-    origin_coords = np.load(os.path.join(chunks_folder, 'origin_coords.npy'), allow_pickle=True)
-    for chunk_file in csv_files:
-        current_chunk = int(re.findall(r"\d+", os.path.basename(chunk_file))[-1])
-        print("Processing", current_chunk)
-        chunk_df = pd.read_csv(chunk_file)
-        if chunk_df.empty:
-            continue
-        chunk_df_corrected = pd.DataFrame()
-        z_values = chunk_df[['axis-0']].to_numpy()
-        y_values = chunk_df[['axis-1']].to_numpy()
-        x_values = chunk_df[['axis-2']].to_numpy()
-        z_values += origin_coords[current_chunk, 0]
-        y_values += origin_coords[current_chunk, 1]
-        x_values += origin_coords[current_chunk, 2]
-        chunk_df_corrected['index'] = list(range(chunk_df.shape[0]))
-        chunk_df_corrected['axis-0'] = z_values
-        chunk_df_corrected['axis-1'] = y_values
-        chunk_df_corrected['axis-2'] = x_values
-        df = pd.concat([df, chunk_df_corrected])
-
-    print("Saving df")
-    df.to_csv(os.path.join(output_folder_sequence, 'merged_df.csv'), index=False)
-
-
-def merge_dbscan_df():
-    df_column_names = ['index', 'axis-0', 'axis-1', 'axis-2']
-    df = pd.DataFrame(columns=df_column_names)
-    csv_files = sorted(glob(os.path.join(dbscan_folder, 'dbscan*.csv')))
-    origin_coords = np.load(os.path.join(chunks_folder, 'origin_coords.npy'), allow_pickle=True)
-    for chunk_file in csv_files:
-        current_chunk = int(re.findall(r"\d+", os.path.basename(chunk_file))[-1])
-        print("Processing", current_chunk)
-        chunk_df = pd.read_csv(chunk_file)
-        if chunk_df.empty:
-            continue
-        chunk_df_corrected = pd.DataFrame()
-        z_values = chunk_df[['axis-0']].to_numpy()
-        y_values = chunk_df[['axis-1']].to_numpy()
-        x_values = chunk_df[['axis-2']].to_numpy()
-        z_values += origin_coords[current_chunk, 0]
-        y_values += origin_coords[current_chunk, 1]
-        x_values += origin_coords[current_chunk, 2]
-        chunk_df_corrected['index'] = list(range(chunk_df.shape[0]))
-        chunk_df_corrected['axis-0'] = z_values
-        chunk_df_corrected['axis-1'] = y_values
-        chunk_df_corrected['axis-2'] = x_values
-        df = pd.concat([df, chunk_df_corrected])
-
-    print("Saving df")
-    df.to_csv(os.path.join(output_folder_sequence, 'merged_dbscan_df.csv'), index=False)
-
-
 input_dir = sys.argv[1]
 output_folder_sequence = sys.argv[2]
 chunks_folder = sys.argv[3]
 resolution_level = int(sys.argv[4])
 signal_channel = int(sys.argv[5])
 username = sys.argv[6]
-with_dbscan = int(sys.argv[7])
+model = sys.argv[7]
 priority = sys.argv[8]
 
 metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
@@ -214,38 +151,10 @@ number_of_chunks = get_chunking()
 print("number of chunks", number_of_chunks)
 extract_first_chunk()  # a reference chunk, considered having all noise
 submit_detection_cpu_slurm_array(number_of_chunks)
-
-# wait for all chunks to be extracted
-chunks_done = len(glob(os.path.join(chunks_folder, ".chunk_*.json")))
-while chunks_done < number_of_chunks:
-    print(f"Chunks extracted: {chunks_done} of {number_of_chunks}")
-    time.sleep(120)
-    chunks_done = len(glob(os.path.join(chunks_folder, ".chunk_*.json")))
-
-bg_fg_chunks_json = os.path.join(chunks_folder, 'bg_fg_chunks.json')
-if not os.path.exists(bg_fg_chunks_json):
-    bg_chunks = []
-    fg_chunks = []
-    chunk_jsons = sorted(glob(os.path.join(chunks_folder, ".chunk_*.json")))
-    for chunk_json in chunk_jsons:
-        chunk_meta = json.load(open(chunk_json, 'r'))
-        chunk_number = int(re.findall(r'\d{5}', os.path.basename(chunk_json))[0])
-        if chunk_meta['content'] == 'fg':
-            fg_chunks.append(chunk_number)
-        elif chunk_meta['content'] == 'bg':
-            bg_chunks.append(chunk_number)
-
-    bg_fg_chunks = {"background": bg_chunks, "foreground": fg_chunks}
-    json.dump(bg_fg_chunks, open(bg_fg_chunks_json, 'w'))
-else:
-    bg_fg_chunks = json.load(open(bg_fg_chunks_json, 'r'))
-    bg_chunks = bg_fg_chunks['background']
-    fg_chunks = bg_fg_chunks['foreground']
-
 # wait for all GPU jobs to finish
 chunks_done = len(glob(os.path.join(napari_folder, "napari_chunk_*.csv")))
-while chunks_done < len(fg_chunks):
-    print(f"Chunks done: {chunks_done} of {len(fg_chunks)}")
+while chunks_done < number_of_chunks:
+    print(f"Chunks done: {chunks_done} of {number_of_chunks}")
     time.sleep(120)
     chunks_done = len(glob(os.path.join(napari_folder, "napari_chunk_*.csv")))
 
@@ -256,8 +165,8 @@ if not os.path.exists(merged_csv):
 
 if with_dbscan:
     chunks_done = len(glob(os.path.join(dbscan_folder, "dbscan_napari_chunk_*.csv")))
-    while chunks_done < len(fg_chunks):
-        print(f"Chunks done: {chunks_done} of {len(fg_chunks)}")
+    while chunks_done < number_of_chunks:
+        print(f"Chunks done: {chunks_done} of {number_of_chunks}")
         time.sleep(120)
         chunks_done = len(glob(os.path.join(dbscan_folder, "dbscan_napari_chunk_*.csv")))
     # merge the DBSCAN dataframes with points for all chunks

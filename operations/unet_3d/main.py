@@ -34,7 +34,14 @@ class unet_3d(ImageOperation):
             f"channel_{self.channel}",
             f"{self.sequence}"
         )
-        self.chunks_folder = os.path.join(self.output_folder_sequence, "chunks")
+        self.chunks_folder = os.path.join(
+            self.metadata["base_output_dir"],
+            f"resolution_level_{self.resolution_level}_chunks",
+            f"channel_{self.channel}",
+            f"{CHUNK_SIZE[0]}x{CHUNK_SIZE[1]}x{CHUNK_SIZE[2]}",
+            "raw"
+        )
+        # self.chunks_folder = os.path.join(self.output_folder_sequence, "chunks")
         self.jobs_folder = os.path.join(self.output_folder_sequence, "slurm_jobs")
         self.save_folder = os.path.join(
             self.output_folder_sequence,
@@ -85,70 +92,73 @@ class unet_3d(ImageOperation):
             f.write(json.dumps(provenance))
         return provenance_file_path
 
-    def get_chunking(self):
-        tiff_stack_shape = self.metadata['shape']
-        ratios = (np.array(tiff_stack_shape) / np.array(CHUNK_SIZE)).astype('int') + 1
-        patchify_chunks_shape = (*list(ratios), *CHUNK_SIZE)
-        print("patchify_chunks_shape", patchify_chunks_shape)
-        origin_coords = self.get_origin_coords(3, patchify_chunks_shape, CHUNK_SIZE)
-        chunk_indices = self.get_chunk_indices(origin_coords, CHUNK_SIZE)
-        print("Total chunks", len(chunk_indices))
-        np.save(os.path.join(self.chunks_folder, 'origin_coords.npy'), origin_coords)
-        np.save(os.path.join(self.chunks_folder, 'chunk_indices.npy'), chunk_indices)
-        return len(chunk_indices)
+    # def get_chunking(self):
+    #     tiff_stack_shape = self.metadata['shape']
+    #     ratios = (np.array(tiff_stack_shape) / np.array(CHUNK_SIZE)).astype('int') + 1
+    #     patchify_chunks_shape = (*list(ratios), *CHUNK_SIZE)
+    #     print("patchify_chunks_shape", patchify_chunks_shape)
+    #     origin_coords = self.get_origin_coords(3, patchify_chunks_shape, CHUNK_SIZE)
+    #     chunk_indices = self.get_chunk_indices(origin_coords, CHUNK_SIZE)
+    #     print("Total chunks", len(chunk_indices))
+    #     np.save(os.path.join(self.chunks_folder, 'origin_coords.npy'), origin_coords)
+    #     np.save(os.path.join(self.chunks_folder, 'chunk_indices.npy'), chunk_indices)
+    #     return len(chunk_indices)
 
-    @staticmethod
-    def get_origin_coords(ndim, patchify_chunks_shape, chunk_size):
-        """
-        Get coordinates of each chunk origin.
-        """
-        coords_shape = list(patchify_chunks_shape[:ndim]) + [ndim]
-        coords = np.empty(coords_shape, dtype=np.uint16)
-        print(" coords shape", coords.shape)
-        for z in range(coords.shape[0]):
-            for y in range(coords.shape[1]):
-                for x in range(coords.shape[2]):
-                    coords[z, y, x, :] = np.array((
-                        z * chunk_size[0],
-                        y * chunk_size[1],
-                        x * chunk_size[2]
-                    ))
-        coords = np.reshape(coords, (np.prod(coords.shape[:ndim]), ndim))
-        print("final coords shape", coords.shape)
-        return coords
+    # @staticmethod
+    # def get_origin_coords(ndim, patchify_chunks_shape, chunk_size):
+    #     """
+    #     Get coordinates of each chunk origin.
+    #     """
+    #     coords_shape = list(patchify_chunks_shape[:ndim]) + [ndim]
+    #     coords = np.empty(coords_shape, dtype=np.uint16)
+    #     print(" coords shape", coords.shape)
+    #     for z in range(coords.shape[0]):
+    #         for y in range(coords.shape[1]):
+    #             for x in range(coords.shape[2]):
+    #                 coords[z, y, x, :] = np.array((
+    #                     z * chunk_size[0],
+    #                     y * chunk_size[1],
+    #                     x * chunk_size[2]
+    #                 ))
+    #     coords = np.reshape(coords, (np.prod(coords.shape[:ndim]), ndim))
+    #     print("final coords shape", coords.shape)
+    #     return coords
 
-    @staticmethod
-    def get_chunk_indices(origin_coords, chunk_size):
-        indices = []
-        for origin in list(origin_coords):
-            indices.append([
-                slice(origin[0], origin[0] + chunk_size[0], 1),
-                slice(origin[1], origin[1] + chunk_size[1], 1),
-                slice(origin[2], origin[2] + chunk_size[2], 1)
-            ])
-        return indices
+    # @staticmethod
+    # def get_chunk_indices(origin_coords, chunk_size):
+    #     indices = []
+    #     for origin in list(origin_coords):
+    #         indices.append([
+    #             slice(origin[0], origin[0] + chunk_size[0], 1),
+    #             slice(origin[1], origin[1] + chunk_size[1], 1),
+    #             slice(origin[2], origin[2] + chunk_size[2], 1)
+    #         ])
+    #     return indices
 
-    def submit_detection_cpu_slurm_array(self, number_of_chunks):
-        # write slurm job
-        path_to_task = os.path.join(self.jobs_folder, f"cpu_array_all_chunks.sh")
+
+
+    def run_all(self):
+        path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
         main_script = os.path.abspath(__file__)
-        slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
+        slurm_script = os.path.join(os.path.dirname(main_script), "run_all_steps.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-3d-unet-cpu")
+            f.write(f"#SBATCH -J {self.user}-unet3d-main")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {self.jobs_folder}/main_slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write(f"source {str(settings.HOME)}/miniconda3/bin/activate peace")  # TODO more general path
+            f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
             f.write(f'python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
             f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {self.priority}')
+            f.write(self.chunks_folder if ' ' not in self.chunks_folder else f'"{self.chunks_folder}"')
+            f.write(' ')
+            f.write(f'{self.resolution_level} {self.channel} {self.user} {self.model} {self.priority}')
             f.write('\n')
 
         extra_args = {}
@@ -156,12 +166,11 @@ class unet_3d(ImageOperation):
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
             extra_args['--kill-on-invalid-dep'] = 'yes'
 
-        job_ids = submit_slurm_array(
+        job_ids = submit_slurm_job(
             path_to_task,
-            number_of_chunks,
-            partition=f'{settings.SLURM_PARTITION_CPU}',
-            cores=12,
-            memory=32,
+            partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
+            cores=1,
+            memory=128,
             priority=self.priority,
             extra_args=extra_args
         )
