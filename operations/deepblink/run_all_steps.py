@@ -8,6 +8,8 @@ from glob import glob
 
 import numpy as np
 import pandas as pd
+from dask import delayed, compute
+import dask
 
 from pathlib import Path
 this_script = Path(__file__)
@@ -183,6 +185,56 @@ def merge_dbscan_df():
     df.to_csv(os.path.join(output_folder_sequence, 'merged_dbscan_df.csv'), index=False)
 
 
+def process_chunk(chunk_file, origin_coords):
+    current_chunk = int(re.findall(r"\d+", os.path.basename(chunk_file))[-1])
+    print("Processing", current_chunk)
+    chunk_df = pd.read_csv(chunk_file)
+    if chunk_df.empty:
+        return pd.DataFrame(columns=['index', 'axis-0', 'axis-1', 'axis-2'])
+
+    z_values = chunk_df[['axis-0']].to_numpy()
+    y_values = chunk_df[['axis-1']].to_numpy()
+    x_values = chunk_df[['axis-2']].to_numpy()
+
+    z_values += origin_coords[current_chunk, 0]
+    y_values += origin_coords[current_chunk, 1]
+    x_values += origin_coords[current_chunk, 2]
+
+    chunk_df_corrected = pd.DataFrame({
+        'index': list(range(chunk_df.shape[0])),
+        'axis-0': z_values.flatten(),
+        'axis-1': y_values.flatten(),
+        'axis-2': x_values.flatten(),
+    })
+
+    return chunk_df_corrected
+
+def merge_df_parallel(napari_folder, chunks_folder, output_folder_sequence):
+    csv_files = sorted(glob(os.path.join(napari_folder, 'napari*.csv')))
+    origin_coords = np.load(os.path.join(chunks_folder, 'origin_coords.npy'), allow_pickle=True)
+
+    delayed_tasks = [delayed(process_chunk)(chunk_file, origin_coords) for chunk_file in csv_files]
+    print("Computing with Dask...")
+    results = compute(*delayed_tasks)
+
+    df = pd.concat(results, ignore_index=True)
+    print("Saving df")
+    df.to_csv(os.path.join(output_folder_sequence, 'merged_df.csv'), index=False)
+
+
+def merge_dbscan_df_parallel(dbscan_folder, chunks_folder, output_folder_sequence):
+    csv_files = sorted(glob(os.path.join(dbscan_folder, 'dbscan*.csv')))
+    origin_coords = np.load(os.path.join(chunks_folder, 'origin_coords.npy'), allow_pickle=True)
+
+    delayed_tasks = [delayed(process_chunk)(chunk_file, origin_coords) for chunk_file in csv_files]
+    print("Computing with Dask...")
+    results = compute(*delayed_tasks)
+
+    df = pd.concat(results, ignore_index=True)
+    print("Saving df")
+    df.to_csv(os.path.join(output_folder_sequence, 'merged_dbscan_df.csv'), index=False)
+
+
 input_dir = sys.argv[1]
 output_folder_sequence = sys.argv[2]
 resolution_level = int(sys.argv[3])
@@ -210,7 +262,8 @@ while chunks_done < number_of_chunks:
 # merge the dataframes with points for all chunks
 merged_csv = os.path.join(output_folder_sequence, 'merged_df.csv')
 if not os.path.exists(merged_csv):
-    merge_df()
+    # merge_df()
+    merge_df_parallel(napari_folder, chunks_folder, output_folder_sequence)
 
 if with_dbscan:
     chunks_done = len(glob(os.path.join(dbscan_folder, "dbscan_napari_chunk_*.csv")))
@@ -221,7 +274,8 @@ if with_dbscan:
     # merge the DBSCAN dataframes with points for all chunks
     merged_dbscan_csv = os.path.join(output_folder_sequence, 'merged_dbscan_df.csv')
     if not os.path.exists(merged_dbscan_csv):
-        merge_dbscan_df()
+        # merge_dbscan_df()
+        merge_dbscan_df_parallel(dbscan_folder, chunks_folder, output_folder_sequence)
 
 has_errors = parse_slurm_errors(jobs_folder)
 print("Errors found:", has_errors)

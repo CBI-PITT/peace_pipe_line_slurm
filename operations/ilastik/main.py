@@ -62,6 +62,8 @@ class ilastik(ImageOperation):
         return provenance_file_path, job_ids
 
     def create_provenance(self):
+        base_output_dir = self.metadata['base_output_dir'] if 'base_output_dir' in self.metadata else self.metadata['out_name']
+        base_input_dir = self.metadata['base_input_dir'] if 'base_input_dir' in self.metadata else self.input
         provenance = {
             "input": {
                 "type": "tiff_series",  # input type
@@ -79,8 +81,8 @@ class ilastik(ImageOperation):
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
             "channel": self.channel,
             "resolution_level": self.resolution_level,
-            "base_output_dir": self.metadata['out_name'],
-            "base_input_dir": self.input,
+            "base_output_dir": base_output_dir,
+            "base_input_dir": base_input_dir,
             "sequence": self.sequence
         }
         provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
@@ -139,7 +141,7 @@ class ilastik(ImageOperation):
                 numbers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
                 cores=12,
-                memory=64,
+                memory=128,
                 priority=self.priority,
                 extra_args=extra_args
             )
@@ -149,7 +151,7 @@ class ilastik(ImageOperation):
                 z_layers,
                 partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
                 cores=12,
-                memory=64,
+                memory=128,
                 priority=self.priority,
                 extra_args=extra_args
             )
