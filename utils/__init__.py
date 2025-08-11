@@ -2,8 +2,11 @@ import os
 
 
 def get_user(path):
+    user = None
     try:
         user = path.replace('/h20/Public/', '').split('/')[0]
     except:
-        user = "lab"
-    return user
+        pass
+    if user:
+        return user
+    return "lab"

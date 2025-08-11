@@ -3,8 +3,8 @@ import re
 import subprocess
 
 from analysis.settings import (
-    SLURM_PARTITION_CPU, SLURM_PARTITION_GPU,
-    PRIORITY_TO_NICE_MAP_COMPUTE, PRIORITY_TO_NICE_MAP_GPU
+    SLURM_PARTITION_CPU, GPU_ENABLED_PARTITIONS,
+    PRIORITY_TO_NICE_MAP_COMPUTE, PRIORITY_TO_NICE_MAP_GPU, SLURM_PARTITION_EXTREME
 )
 
 
@@ -22,7 +22,7 @@ def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8,
     command = [
         'sbatch',
         '-p', partition,
-        '--gres=gpu:1' if needs_gpu and partition == SLURM_PARTITION_GPU else ''
+        '--gres=gpu:1' if needs_gpu and partition in GPU_ENABLED_PARTITIONS else ''
         f'--mem={memory}Gb',
         f'-n{cores}',
         f'--nice={nice}',
@@ -50,7 +50,7 @@ def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU,
         'sbatch',
         f'--array=0-{number_of_tasks - 1}',
         '-p', partition,
-        '--gres=gpu:1' if needs_gpu and partition == SLURM_PARTITION_GPU else ''
+        '--gres=gpu:1' if needs_gpu and partition in GPU_ENABLED_PARTITIONS else ''
         f'--mem={memory}Gb',
         f'-n{cores}',
         f'--nice={nice}'
@@ -78,7 +78,7 @@ def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM
         'sbatch',
         f'--array={array_start}-{array_end}',
         '-p', partition,
-        '--gres=gpu:1' if needs_gpu and partition == SLURM_PARTITION_GPU else ''
+        '--gres=gpu:1' if needs_gpu and partition in GPU_ENABLED_PARTITIONS else ''
         f'--mem={memory}Gb',
         f'-n{cores}',
         f'--nice={nice}'
