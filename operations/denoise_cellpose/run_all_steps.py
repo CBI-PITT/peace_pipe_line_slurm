@@ -21,6 +21,9 @@ sys.path.append(str(project_root))
 from analysis import settings
 from utils.slurm import split_slurm_array, submit_slurm_array, parse_slurm_errors
 
+os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
+
 
 def find_min_max(pth):
     npys = sorted(glob(os.path.join(pth, "*.npy")))

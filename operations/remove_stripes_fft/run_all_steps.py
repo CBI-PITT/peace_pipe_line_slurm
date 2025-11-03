@@ -19,6 +19,9 @@ sys.path.append(str(project_root))
 from analysis import settings
 from utils.slurm import split_slurm_array, submit_slurm_array
 
+os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
+
 
 def submit_stripes_removal_job_array():
     z_layers = metadata['shape'][-3]

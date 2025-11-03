@@ -14,6 +14,7 @@ sys.path.append(str(project_root))
 from analysis import settings
 
 os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
 
 
 IMS_FILE_PATH = sys.argv[1]

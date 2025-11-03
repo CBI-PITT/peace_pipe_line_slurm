@@ -11,6 +11,16 @@ from glob import glob
 import pandas as pd
 from spotiflow.model import Spotiflow
 import tifffile
+from pathlib import Path
+this_script = Path(__file__)
+parent_folder = this_script.parent
+operations_folder = parent_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
 
 
 input_dir = sys.argv[1]

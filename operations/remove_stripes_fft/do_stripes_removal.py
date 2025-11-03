@@ -3,6 +3,17 @@ import sys
 import tifffile
 import numpy as np
 
+from pathlib import Path
+this_script = Path(__file__)
+operation_folder = this_script.parent
+operations_folder = operation_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
+
 
 def process_image(file, out_dir):
     def ideal_notch_filter(fshift, points):

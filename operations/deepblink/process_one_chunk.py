@@ -22,6 +22,7 @@ from analysis import settings
 from utils.slurm import submit_slurm_job
 
 os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
 
 
 def extract_chunk_from_imaris_by_number(number):

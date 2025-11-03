@@ -22,6 +22,7 @@ from analysis import settings
 from utils.slurm import split_slurm_array, submit_slurm_array, parse_slurm_errors
 
 os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
 
 CHUNK_SIZE = settings.DEEPBLINK_CHUNK_SIZE
 

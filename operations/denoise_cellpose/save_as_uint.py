@@ -4,6 +4,19 @@ import sys
 import tifffile
 import numpy as np
 
+from pathlib import Path
+this_script = Path(__file__)
+operation_folder = this_script.parent
+operations_folder = operation_folder.parent
+project_root = operations_folder.parent
+sys.path.append(str(project_root))
+
+from analysis import settings
+
+os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
+
+
 INPUT_DIR = sys.argv[1]
 OUTPUT_DIR = sys.argv[2]
 resolution_level = int(sys.argv[3])

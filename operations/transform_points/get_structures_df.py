@@ -22,6 +22,7 @@ sys.path.append(str(project_root))
 from analysis import settings
 
 os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
 
 
 def transform_points_downsampled_to_atlas_space(

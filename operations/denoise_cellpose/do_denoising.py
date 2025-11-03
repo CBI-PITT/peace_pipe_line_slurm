@@ -16,6 +16,7 @@ sys.path.append(str(project_root))
 from analysis import settings
 
 os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
 
 GPU = True
 INPUT_DIR = sys.argv[1]

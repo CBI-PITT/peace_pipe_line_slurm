@@ -20,6 +20,7 @@ sys.path.append(str(project_root))
 from analysis import settings
 
 os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
 
 
 def extract_volume_at_resolution(channel=0, output_resolution=(100, 100, 100)):

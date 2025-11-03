@@ -22,6 +22,8 @@ from analysis import settings
 from utils.slurm import split_slurm_array, submit_slurm_array, parse_slurm_errors, submit_slurm_job
 
 os.umask(settings.UMASK)
+print(f"Running on {os.uname().nodename}")
+
 
 def launch_job_array():
     path_to_task = os.path.join(
