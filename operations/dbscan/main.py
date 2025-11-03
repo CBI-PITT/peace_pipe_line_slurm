@@ -121,7 +121,7 @@ class dbscan(ImageOperation):
         job_ids = submit_slurm_job(
             path_to_task,
             partition=f'{settings.SLURM_PARTITION_HIGH_RAM}',
-            cores=24,
+            cores=12,
             memory=256,
             priority=self.priority,
             extra_args=extra_args

@@ -38,34 +38,21 @@ def run_dbscan_on_df(df, eps, min_samples):
     print("Total clusters:", len(cluster_labels))
 
     # calculate the centroid of each cluster
-    cluster_centroids = []
-
-    # def get_cluster_centroid(label):
-    #     points_in_cluster = points[labels == label]
-    #     centroid = np.mean(points_in_cluster, axis=0)
-    #     return centroid
-    #
-    # centroids = [dask.delayed(get_cluster_centroid)(x) for x in cluster_labels]
-    # cluster_centroids = dask.compute(centroids)[0]
-
-    for label in cluster_labels:
-        print("label", label)
-        # get the points in the current cluster
+    def get_cluster_centroid(label):
         points_in_cluster = points[labels == label]
-
-        # calculate the mean of the points in the cluster to get the centroid
         centroid = np.mean(points_in_cluster, axis=0)
+        return centroid
 
-        # add the centroid to the list of cluster centroids
-        cluster_centroids.append(centroid)
+    centroids = [dask.delayed(get_cluster_centroid)(x) for x in cluster_labels]
+    cluster_centroids = dask.compute(*centroids)
 
     cluster_centroids = np.array(cluster_centroids)
 
-    df = pd.DataFrame()
-    df['axis-0'] = cluster_centroids[:, 0]
-    df['axis-1'] = cluster_centroids[:, 1]
-    df['axis-2'] = cluster_centroids[:, 2]
-    return df
+    out_df = pd.DataFrame()
+    out_df['axis-0'] = cluster_centroids[:, 0]
+    out_df['axis-1'] = cluster_centroids[:, 1]
+    out_df['axis-2'] = cluster_centroids[:, 2]
+    return out_df
 
 print("Doing DBSCAN")
 input_file = sys.argv[1]

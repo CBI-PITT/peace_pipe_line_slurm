@@ -43,11 +43,8 @@ def run_dbscan_on_df(df, eps, min_samples):
         return centroid
 
     centroids = [dask.delayed(get_cluster_centroid)(x) for x in cluster_labels]
-    print("len(centroids)", len(centroids))
     cluster_centroids = dask.compute(*centroids)
-    print("len(cluster_centroids)", len(cluster_centroids))
     cluster_centroids = np.array(cluster_centroids)
-    print("cluster_centroids.shape", cluster_centroids.shape)
     # for label in cluster_labels:
     #     print("label", label)
     #     # get the points in the current cluster
@@ -73,7 +70,7 @@ print("Doing DBSCAN")
 input_file = sys.argv[1]
 output_dir = sys.argv[2]
 model_name = sys.argv[3]
-eps = 7
+eps = 10
 min_samples = 1
 
 print("input file", input_file)

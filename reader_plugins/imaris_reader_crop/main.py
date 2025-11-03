@@ -58,7 +58,7 @@ class imaris_reader_crop(ImageReader):
         print("Running Imaris Reader")
         # create info json files with metadata
         metadata = self.initialize_info_file()
-        with open(os.path.join(self.output, f'resolution_level_{self.resolution_level}', settings.INFO_FILE_NAME), "w") as f:
+        with open(os.path.join(self.output_operation_folder, f'resolution_level_{self.resolution_level}', settings.INFO_FILE_NAME), "w") as f:
             f.write(json.dumps(metadata))
 
         metadata['channel'] = self.channel

@@ -86,7 +86,7 @@ def submit_denoising_job_array():
             path_to_task,
             z_layers,
             numbers,
-            partition=settings.SLURM_PARTITION_GPU,
+            partition=settings.SLURM_PARTITION_EXTREME,
             cores=1,
             memory=32,
             needs_gpu=True,
@@ -96,7 +96,7 @@ def submit_denoising_job_array():
         job_ids = submit_slurm_array(
             path_to_task,
             z_layers,
-            partition=settings.SLURM_PARTITION_GPU,
+            partition=settings.SLURM_PARTITION_EXTREME,
             cores=1,
             memory=32,
             needs_gpu=True,
