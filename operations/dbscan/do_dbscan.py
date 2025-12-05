@@ -25,35 +25,23 @@ def run_dbscan_on_df(df, eps, min_samples):
 
     points = points[~np.any(np.isnan(points), axis=1)]
 
-    # create a DBSCAN object
-    dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+    dbscan = DBSCAN(
+        eps=eps,
+        min_samples=min_samples,
+        algorithm='ball_tree',
+        n_jobs=-1
+    )
 
-    # fit the points to the model
-    dbscan.fit(points)
+    labels = dbscan.fit_predict(points)
+    print("Total clusters:", np.unique(labels).size)
 
-    # get the cluster assignments for each point
-    labels = dbscan.labels_
+    # Create DataFrame and use groupby (fastest for centroid calculation)
+    temp_df = pd.DataFrame(points, columns=['axis-0', 'axis-1', 'axis-2'])
+    temp_df['cluster'] = labels
 
-    # get the unique cluster labels
-    cluster_labels = np.unique(labels)
-    print("Total clusters:", len(cluster_labels))
-
-    # calculate the centroid of each cluster
-    def get_cluster_centroid(label):
-        points_in_cluster = points[labels == label]
-        centroid = np.mean(points_in_cluster, axis=0)
-        return centroid
-
-    centroids = [dask.delayed(get_cluster_centroid)(x) for x in cluster_labels]
-    cluster_centroids = dask.compute(*centroids)
-
-    cluster_centroids = np.array(cluster_centroids)
-
-    out_df = pd.DataFrame()
-    out_df['axis-0'] = cluster_centroids[:, 0]
-    out_df['axis-1'] = cluster_centroids[:, 1]
-    out_df['axis-2'] = cluster_centroids[:, 2]
+    out_df = temp_df.groupby('cluster')[['axis-0', 'axis-1', 'axis-2']].mean().reset_index(drop=True)
     return out_df
+
 
 print("Doing DBSCAN")
 input_file = sys.argv[1]
