@@ -46,18 +46,18 @@ def launch_job_array():
         f.write(' ')
         f.write(input_tiff_stack_dir)
         f.write(' ')
-        f.write(save_folder)
+        f.write(z_layers_folder)
         f.write(' ')
         f.write(model_name)
         f.write(' ')
         f.write('$SLURM_ARRAY_TASK_ID')
         f.write('\n')
 
-    already_done = glob(os.path.join(save_folder, "*.csv"))
+    already_done = glob(os.path.join(z_layers_folder, "*.csv"))
     if len(already_done):
         print("Partially processed")
         print("Processed", len(already_done), "of", z_layers)
-        files = os.listdir(save_folder)
+        files = os.listdir(z_layers_folder)
         pattern = "_z(\d+)\.csv"
         numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.csv')]
         numbers = set(map(int, numbers))
@@ -84,22 +84,26 @@ def launch_job_array():
 
 
 def merge_df():
+    df_path = os.path.join(save_folder, f'{model_name}_merged_df.csv')
+    if os.path.exists(df_path):
+        print("df already exists")
+        return
     df_column_names = ['index', 'axis-0', 'axis-1', 'axis-2']
     df = pd.DataFrame(columns=df_column_names)
-    csv_files = sorted(glob(os.path.join(save_folder, '*.csv')))
+    csv_files = sorted(glob(os.path.join(z_layers_folder, '*.csv')))
     delayed_tasks = [delayed(pd.read_csv)(z) for z in csv_files]
     results = compute(*delayed_tasks)
     df = pd.concat(results, ignore_index=True)
     print("Saving df")
-    df.to_csv(os.path.join(str(Path(save_folder).parent), f'{model_name}_merged_df.csv'), index=False)
+    df.to_csv(df_path, index=False)
 
 
 def start_dbscan_job():
     path_to_task = os.path.join(jobs_folder, f"dbscan.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "run_dbscan.py")
-    input_file = os.path.join(str(Path(save_folder).parent), f'{model_name}_merged_df.csv')
-    output_dir = str(output_folder_sequence)
+    input_file = os.path.join(save_folder, f'{model_name}_merged_df.csv')
+    output_dir = save_folder
     try:
         os.makedirs(output_dir)
     except:
@@ -140,6 +144,7 @@ model_name = sys.argv[5]
 with_dbscan = int(sys.argv[6])
 
 metadata = json.load(open(os.path.join(input_tiff_stack_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
+z_layers_folder = os.path.join(save_folder, 'z_layers')
 z_layers = metadata['shape'][-3]
 resolution_level = metadata['resolution_level']
 channel = metadata['channel']
@@ -149,11 +154,11 @@ jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
 
 launch_job_array()
 
-layers_done = len(glob(os.path.join(save_folder, "*.csv")))
+layers_done = len(glob(os.path.join(z_layers_folder, "*.csv")))
 while layers_done < z_layers:
     print(f"Layers done: {layers_done} of {z_layers}")
     time.sleep(120)
-    layers_done = len(glob(os.path.join(save_folder, "*.csv")))
+    layers_done = len(glob(os.path.join(z_layers_folder, "*.csv")))
 
 # merge the dataframes with points for all chunks
 merge_df()
@@ -164,7 +169,7 @@ if with_dbscan:
     wait_iterations = 1000  # 1000 x 1 minute = ~16h
     current_iteration = 0
     while current_iteration < wait_iterations:
-        dbscan_df = os.path.join(output_folder_sequence, f"{model_name}_merged_dbscan_df.csv")
+        dbscan_df = os.path.join(save_folder, f"{model_name}_merged_dbscan_df.csv")
         if os.path.exists(dbscan_df):
             break
         time.sleep(60)

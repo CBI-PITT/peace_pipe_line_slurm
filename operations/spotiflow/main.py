@@ -39,15 +39,15 @@ class spotiflow(ImageOperation):
         )
         self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
         self.save_folder = os.path.join(output_folder_sequence, f'{self.model}_model')
+        z_layers_folder = os.path.join(self.save_folder, 'z_layers')
         self.out_csv_name = f"{self.model}_merged_dbscan_df.csv" if self.with_dbscan else f"{self.model}_merged_df.csv"
-        self.out_csv_path = os.path.join(output_folder_sequence, self.out_csv_name)
+        self.out_csv_path = os.path.join(self.save_folder, self.out_csv_name)
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Spotiflow prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
-        if not os.path.exists(self.jobs_folder):
-            os.makedirs(self.jobs_folder)
-        if not os.path.exists(self.save_folder):
-            os.makedirs(self.save_folder)
+        os.makedirs(self.jobs_folder, exist_ok=True)
+        os.makedirs(self.save_folder, exist_ok=True)
+        os.makedirs(z_layers_folder, exist_ok=True)
 
     def run(self):
         print("Running spotiflow")
@@ -58,6 +58,8 @@ class spotiflow(ImageOperation):
     def create_provenance(self):
         base_output_dir = self.metadata['base_output_dir']
         base_input_dir = self.metadata['base_input_dir']
+        if base_input_dir == "":
+            base_input_dir = self.input
         provenance = {
             "input": {
                 "type": "tiff_series",
