@@ -14,25 +14,13 @@ from utils import get_user
 from utils.slurm import submit_slurm_job
 
 
-class brainreg(ImageOperation):
+class emlddmm(ImageOperation):
     """
     Affine and nonlinear brain registration.
-
-    PEACE JSON example: (name should start with 'SLURM_settings_'
-    {
-        "input": "/h20/Public/cakir-i/4CL16/chow1_mag8x_montage.ims",
-        "output": "/h20/Public/cakir-i/4CL16/analysis/chow1_mag8x_montage",
-        "operation": "brainreg",
-        "extras": {
-            "atlas": "allen_mouse_25um",
-            "orientation": "sal",
-            "brain_geometry": "full"
-        }
-    }
     """
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
-        self.name = "brainreg"
+        self.name = "emlddmm"
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
         if not self.output:
             self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
@@ -45,8 +33,9 @@ class brainreg(ImageOperation):
         self.atlas = kwargs.get('atlas', "allen_mouse_25um")
         self.orientation = kwargs.get('orientation', self.metadata['orientation'])
         self.brain_geometry = kwargs.get('brain_geometry', "full")
+        self.volume_to_register = kwargs.get('volume_to_register')
         self.prerequisites = kwargs.get('prerequisites', [])
-        print("Brainreg prerequisites", self.prerequisites)
+        print("EMLDDMM prerequisites", self.prerequisites)
 
         output_operation_folder = os.path.join(self.output, self.name)
         output_folder_sequence = os.path.join(
@@ -56,14 +45,14 @@ class brainreg(ImageOperation):
             f"{self.sequence}"
         )
         self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
-        if self.metadata.get('sequence'):
-            previous_operations = self.metadata['sequence'].split(',')
-            previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
-        else:
-            previous_operation = ""
+        # if self.metadata.get('sequence'):
+        #     previous_operations = self.metadata['sequence'].split(',')
+        #     previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
+        # else:
+        #     previous_operation = ""
         self.registration_folder = os.path.join(
             output_folder_sequence,
-            f"registration_{self.atlas}{previous_operation}"
+            f"registration_{self.atlas}"
         )
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
@@ -72,7 +61,7 @@ class brainreg(ImageOperation):
             os.makedirs(self.registration_folder)
 
     def run(self):
-        print("Running brainreg")
+        print("Running EMLDDMM")
         provenance_file_path = self.create_provenance()
         job_ids = self.run_registration()  # run brainreg in SLURM
         return provenance_file_path, job_ids  # return path to provenance and submitted job IDs
@@ -126,22 +115,25 @@ class brainreg(ImageOperation):
 
     def run_registration(self):
         path_to_task = os.path.join(self.jobs_folder, f"register_rl{self.resolution_level}_c{self.channel}_to_{self.atlas}.sh")
+        main_script = os.path.abspath(__file__)
+        slurm_script = os.path.join(os.path.dirname(main_script), "register_emlddmm.py")
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-brainreg")
+            f.write(f"#SBATCH -J {self.user}-emlddmm")
             f.write('\n')
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate brainreg")
+            f.write("source /h20/home/lab/miniconda3/bin/activate emlddmm2025")
             f.write('\n')
-            f.write('brainreg ')
+            f.write(f'python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
             f.write(self.registration_folder if ' ' not in self.registration_folder else f'"{self.registration_folder}"')
-            f.write(f' -v {str(self.resolution[0])} {str(self.resolution[1])} {str(self.resolution[2])}')
-            f.write(f' --orientation {self.orientation} --atlas {self.atlas} --brain_geometry {self.brain_geometry}')
+            f.write(f' {self.atlas}')
+            f.write(f' {self.orientation}')
+            f.write(f' {self.volume_to_register}')
             f.write('\n')
 
         print("Starting registration...")
@@ -152,9 +144,10 @@ class brainreg(ImageOperation):
 
         job_ids = submit_slurm_job(
             path_to_task,
-            partition=settings.SLURM_PARTITION_HIGH_RAM,
+            partition=settings.SLURM_PARTITION_GPU,
             cores=24,
             memory=128,
+            needs_gpu=True,
             priority=self.priority,
             extra_args=extra_args
         )
