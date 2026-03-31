@@ -18,8 +18,8 @@ os.umask(settings.UMASK)
 print(f"Running on {os.uname().nodename}")
 
 
-def adaptive_histogram_equalization(image):
-    image = exposure.equalize_adapthist(image, clip_limit=0.03)
+def adaptive_histogram_equalization(image, clip_limit):
+    image = exposure.equalize_adapthist(image, clip_limit=clip_limit)
     image = (image * 65535).astype(np.uint16)
     return image
 
@@ -29,12 +29,14 @@ OUTPUT_DIR = sys.argv[2]
 resolution_level = sys.argv[3]
 channel = sys.argv[4]
 z = sys.argv[5]
+clip_limit = float(sys.argv[6])
 
 print("INPUT_DIR", INPUT_DIR)
 print("OUTPUT_DIR", OUTPUT_DIR)
 print("resolution_level", resolution_level)
 print("channel", channel)
 print("z", z)
+print("clip_limit", clip_limit)
 
 input_file = os.path.join(
     INPUT_DIR,
@@ -48,6 +50,6 @@ output_file = os.path.join(
 
 print("Running adaptive histogram equalization")
 img = tifffile.imread(input_file)
-img = adaptive_histogram_equalization(img)
+img = adaptive_histogram_equalization(img, clip_limit)
 tifffile.imwrite(output_file, img)
 print("Done")

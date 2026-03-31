@@ -19,6 +19,7 @@ class adaptive_histogram_equalization(ImageOperation):
         self.resolution_level = self.metadata['resolution_level']
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
+        self.clip_limit = kwargs.get('clip_limit', 0.03)
 
         output_operation_folder = os.path.join(self.output, self.name)
         output_folder_sequence = os.path.join(
@@ -62,7 +63,7 @@ class adaptive_histogram_equalization(ImageOperation):
             },
             "process": {
                 "parameters": {
-                    "clip_limit": 0.03
+                    "clip_limit": self.clip_limit
                 }
             },
             "source": source,
@@ -106,6 +107,8 @@ class adaptive_histogram_equalization(ImageOperation):
             f.write(str(self.channel))
             f.write(' ')
             f.write('$SLURM_ARRAY_TASK_ID')
+            f.write(' ')
+            f.write(str(self.clip_limit))
             f.write('\n')
 
         extra_args = {}
