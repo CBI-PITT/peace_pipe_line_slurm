@@ -4,6 +4,7 @@ from .cellfinder import cellfinder
 from .ants import ants
 from .stretch_contrast import stretch_contrast
 from .adaptive_histogram_equalization import adaptive_histogram_equalization
+from .gaussian_blur import gaussian_blur
 from .ilastik import ilastik
 from .resnet_classification import resnet_classification
 from .cellpose import cellpose
