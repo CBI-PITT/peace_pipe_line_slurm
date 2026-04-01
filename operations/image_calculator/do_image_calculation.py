@@ -50,6 +50,12 @@ def apply_bitwise_or_logical(image1, image2, calculator_operation, dtype1):
     return np.logical_xor(image1_bool, image2_bool)
 
 
+def get_dtype_max(dtype):
+    if np.issubdtype(dtype, np.integer):
+        return float(np.iinfo(dtype).max)
+    return 1.0
+
+
 def apply_operation(image1, image2, calculator_operation, save_as_float):
     dtype1 = image1.dtype
 
@@ -58,17 +64,38 @@ def apply_operation(image1, image2, calculator_operation, save_as_float):
         return cast_result(result, dtype1, save_as_float)
 
     image1_float = image1.astype(np.float32)
-    image2_float = None if image2 is None else image2.astype(np.float32)
+    image2_is_scalar = np.isscalar(image2) if image2 is not None else False
+    image2_float = None if image2 is None else (float(image2) if image2_is_scalar else image2.astype(np.float32))
+
+    use_scaled_intensity_math = (
+        not save_as_float
+        and not image2_is_scalar
+        and image2 is not None
+        and np.issubdtype(dtype1, np.integer)
+        and np.issubdtype(image2.dtype, np.integer)
+    )
+    dtype1_max = get_dtype_max(dtype1)
 
     if calculator_operation == 'add':
         result = image1_float + image2_float
     elif calculator_operation == 'subtract':
         result = image1_float - image2_float
     elif calculator_operation == 'multiply':
-        result = image1_float * image2_float
+        if use_scaled_intensity_math:
+            image2_max = get_dtype_max(image2.dtype)
+            result = (image1_float / dtype1_max) * (image2_float / image2_max) * dtype1_max
+        else:
+            result = image1_float * image2_float
     elif calculator_operation == 'divide':
         result = np.zeros_like(image1_float, dtype=np.float32)
-        np.divide(image1_float, image2_float, out=result, where=image2_float != 0)
+        if use_scaled_intensity_math:
+            image2_max = get_dtype_max(image2.dtype)
+            image1_norm = image1_float / dtype1_max
+            image2_norm = image2_float / image2_max
+            np.divide(image1_norm, image2_norm, out=result, where=image2_norm != 0)
+            result *= dtype1_max
+        else:
+            np.divide(image1_float, image2_float, out=result, where=image2_float != 0)
     elif calculator_operation == 'min':
         result = np.minimum(image1_float, image2_float)
     elif calculator_operation == 'max':
@@ -97,14 +124,21 @@ with open(MANIFEST_PATH, 'r') as f:
 task_info = manifest[TASK_ID]
 input1_path = task_info['input1']
 input2_path = task_info['input2']
+input2_scalar = task_info['input2_scalar']
 output_path = task_info['output']
 
 print("input1_path", input1_path)
 print("input2_path", input2_path)
+print("input2_scalar", input2_scalar)
 print("output_path", output_path)
 
 image1 = tifffile.imread(input1_path)
-image2 = None if CALCULATOR_OPERATION == 'not' else tifffile.imread(input2_path)
+if CALCULATOR_OPERATION == 'not':
+    image2 = None
+elif input2_scalar is not None:
+    image2 = input2_scalar
+else:
+    image2 = tifffile.imread(input2_path)
 result = apply_operation(image1, image2, CALCULATOR_OPERATION, SAVE_AS_FLOAT)
 tifffile.imwrite(output_path, result)
 print("Done")

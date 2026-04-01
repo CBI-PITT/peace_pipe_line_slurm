@@ -16,6 +16,13 @@ def get_tiff_files(folder):
     return sorted(files)
 
 
+def parse_scalar_operand(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class image_calculator(ImageOperation):
     def __init__(self, input, output, **kwargs):
         super().__init__(input, output, **kwargs)
@@ -29,6 +36,7 @@ class image_calculator(ImageOperation):
         self.input2 = kwargs['input2']
         self.calculator_operation = kwargs.get('calculator_operation', 'add')
         self.save_as_float = kwargs.get('save_as_float', False)
+        self.scalar_operand = parse_scalar_operand(self.input2)
 
         output_operation_folder = os.path.join(self.output, self.name)
         output_folder_sequence = os.path.join(
@@ -55,13 +63,39 @@ class image_calculator(ImageOperation):
         self.output_dtype = 'float32' if self.save_as_float else self.input_dtype
         self.manifest_path = os.path.join(self.jobs_folder, 'file_pairs.json')
 
+        if self.scalar_operand is not None and self.calculator_operation in {'and', 'or', 'xor'}:
+            raise ValueError(f"Scalar second operand is not supported for '{self.calculator_operation}'")
+
     def create_file_pairs(self):
         files1 = get_tiff_files(self.input)
-        files2 = get_tiff_files(self.input2)
 
         if not files1:
             raise FileNotFoundError(f"No TIFF files found in first operand folder: {self.input}")
-        if self.calculator_operation != 'not' and not files2:
+
+        if self.calculator_operation == 'not':
+            return [
+                {
+                    'input1': input1_path,
+                    'input2': None,
+                    'input2_scalar': None,
+                    'output': os.path.join(self.save_folder, os.path.basename(input1_path)),
+                }
+                for input1_path in files1
+            ]
+
+        if self.scalar_operand is not None:
+            return [
+                {
+                    'input1': input1_path,
+                    'input2': None,
+                    'input2_scalar': self.scalar_operand,
+                    'output': os.path.join(self.save_folder, os.path.basename(input1_path)),
+                }
+                for input1_path in files1
+            ]
+
+        files2 = get_tiff_files(self.input2)
+        if not files2:
             raise FileNotFoundError(f"No TIFF files found in second operand folder: {self.input2}")
 
         files2_by_name = {os.path.basename(path): path for path in files2}
@@ -77,6 +111,7 @@ class image_calculator(ImageOperation):
             file_pairs.append({
                 'input1': input1_path,
                 'input2': input2_path,
+                'input2_scalar': None,
                 'output': os.path.join(self.save_folder, basename),
             })
 
@@ -116,6 +151,7 @@ class image_calculator(ImageOperation):
             "process": {
                 "parameters": {
                     "second_operand": self.input2,
+                    "second_operand_type": "scalar" if self.scalar_operand is not None else "folder",
                     "calculator_operation": self.calculator_operation,
                     "save_as_float": self.save_as_float,
                     "output_dtype": self.output_dtype,
