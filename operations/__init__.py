@@ -7,6 +7,7 @@ from .adaptive_histogram_equalization import adaptive_histogram_equalization
 from .gaussian_blur import gaussian_blur
 from .gamma_correction import gamma_correction
 from .image_calculator import image_calculator
+from .resize_image import resize_image
 from .ilastik import ilastik
 from .resnet_classification import resnet_classification
 from .cellpose import cellpose
