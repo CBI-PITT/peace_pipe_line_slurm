@@ -125,8 +125,11 @@ class brainreg(ImageOperation):
 
     def run_registration(self):
         path_to_task = os.path.join(self.jobs_folder, f"register_rl{self.resolution_level}_c{self.channel}_to_{self.atlas}.sh")
+        registration_parent = os.path.dirname(self.registration_folder)
+        registration_basename = os.path.basename(self.registration_folder)
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
+            f.write('set -e\n')
             f.write('\n')
             f.write(f"#SBATCH -J {self.user}-brainreg")
             f.write('\n')
@@ -141,6 +144,14 @@ class brainreg(ImageOperation):
             f.write(self.registration_folder if ' ' not in self.registration_folder else f'"{self.registration_folder}"')
             f.write(f' -v {str(self.resolution[0])} {str(self.resolution[1])} {str(self.resolution[2])}')
             f.write(f' --orientation {self.orientation} --atlas {self.atlas} --brain_geometry {self.brain_geometry}')
+            f.write('\n')
+            f.write('python3 -c ')
+            f.write('"import shutil, sys; shutil.make_archive(sys.argv[1], \"zip\", root_dir=sys.argv[2], base_dir=sys.argv[3])" ')
+            f.write(self.registration_folder if ' ' not in self.registration_folder else f'"{self.registration_folder}"')
+            f.write(' ')
+            f.write(registration_parent if ' ' not in registration_parent else f'"{registration_parent}"')
+            f.write(' ')
+            f.write(registration_basename if ' ' not in registration_basename else f'"{registration_basename}"')
             f.write('\n')
 
         print("Starting registration...")
