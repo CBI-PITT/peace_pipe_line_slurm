@@ -95,6 +95,7 @@ all_detected_spots_downsampled = transform_points_to_downsampled_space(
 all_detected_spots_transformed = transform_points_downsampled_to_atlas_space(
     all_detected_spots_downsampled, atlas, deformation_field_paths
 )
+binary_img = np.zeros(atlas.annotation.shape, dtype=np.uint8)
 
 all_detected_spots_downsampled = np.round(all_detected_spots_downsampled).astype(int)
 # For each point, get atlas label
@@ -140,6 +141,11 @@ for ind in range(all_detected_spots_transformed.shape[0]):
             structure_name = row_values['name'].values[0]
             structure_code = row_values['acronym'].values[0]
             label_id = atlas_value
+            binary_img[
+                all_detected_spots_transformed[ind, 0],
+                all_detected_spots_transformed[ind, 1],
+                all_detected_spots_transformed[ind, 2]
+            ] = 1
             good_points.append([
                 all_detected_spots_transformed[ind, 0],
                 all_detected_spots_transformed[ind, 1],
@@ -231,6 +237,10 @@ output_csv_file_path = os.path.join(
     results_folder,
     f"{os.path.basename(cells_path.replace('.csv', ''))}_for_dashboard.csv"
 )
+output_binary_tiff_file_path = os.path.join(
+    results_folder,
+    f"{os.path.basename(cells_path.replace('.csv', ''))}_for_dashboard_binary.tiff"
+)
 
 df = df.astype(
     {"uuid": str, "z_raw": float, "y_raw": float, "x_raw": float, "raw_coord_units": str, "z_raw_px": int,
@@ -242,4 +252,6 @@ df = df.astype(
      "atlas_structure_number": int} #, "metadata": int}
 )
 df.to_csv(output_csv_file_path, index=False)
+tifffile.imwrite(output_binary_tiff_file_path, binary_img)
 print('DataFrame saved as', output_csv_file_path)
+print('Binary TIFF saved as', output_binary_tiff_file_path)
