@@ -31,6 +31,8 @@ class jp2_reader(ImageReader):
         self._shape = None
         self.extracted_tiffs_folders = []
         self.rgb_tiffs_folder = None
+        self.downscaled_tiffs_folders = []
+        self.downscaled_rgb_tiffs_folder = None
 
         os.umask(settings.UMASK)
         if not os.path.exists(self.jobs_folder):
@@ -51,9 +53,30 @@ class jp2_reader(ImageReader):
             f'channel_{channel}'
         )
 
+    def get_downscaled_channel_folder(self, channel):
+        return os.path.join(
+            self.output,
+            'resolution_25_um',
+            f'channel_{channel}'
+        )
+
+    def get_xy_resolution_25um(self):
+        return [25.0, 25.0]
+
+    def get_downscaled_shape(self):
+        scale_y = min(self.resolution_y / 25.0, 1.0)
+        scale_x = min(self.resolution_x / 25.0, 1.0)
+        return [
+            self._shape[0],
+            max(1, int(round(self._shape[1] * scale_y))),
+            max(1, int(round(self._shape[2] * scale_x)))
+        ]
+
     def ensure_output_folders(self):
         if not self.extracted_tiffs_folders:
             self.extracted_tiffs_folders = [self.get_channel_folder(channel) for channel in range(self.channels)]
+        if not self.downscaled_tiffs_folders:
+            self.downscaled_tiffs_folders = [self.get_downscaled_channel_folder(channel) for channel in range(self.channels)]
 
         if self.mode == 'rgb' and self.rgb_tiffs_folder is None:
             self.rgb_tiffs_folder = os.path.join(
@@ -61,13 +84,24 @@ class jp2_reader(ImageReader):
                 f'resolution_level_{self.resolution_level}',
                 'rgb_color'
             )
+        if self.mode == 'rgb' and self.downscaled_rgb_tiffs_folder is None:
+            self.downscaled_rgb_tiffs_folder = os.path.join(
+                self.output,
+                'resolution_25_um',
+                'rgb_color'
+            )
 
         for extracted_tiffs_folder in self.extracted_tiffs_folders:
             if not os.path.exists(extracted_tiffs_folder):
                 os.makedirs(extracted_tiffs_folder)
+        for downscaled_tiffs_folder in self.downscaled_tiffs_folders:
+            if not os.path.exists(downscaled_tiffs_folder):
+                os.makedirs(downscaled_tiffs_folder)
 
         if self.rgb_tiffs_folder and not os.path.exists(self.rgb_tiffs_folder):
             os.makedirs(self.rgb_tiffs_folder)
+        if self.downscaled_rgb_tiffs_folder and not os.path.exists(self.downscaled_rgb_tiffs_folder):
+            os.makedirs(self.downscaled_rgb_tiffs_folder)
 
     def run(self):
         print('Running JP2 Reader')
@@ -94,6 +128,20 @@ class jp2_reader(ImageReader):
             with open(provenance_file_path, 'w') as f:
                 f.write(json.dumps(channel_metadata))
 
+        downscaled_shape = self.get_downscaled_shape()
+        for channel, downscaled_tiffs_folder in enumerate(self.downscaled_tiffs_folders):
+            downscaled_metadata = metadata.copy()
+            downscaled_metadata['channel'] = channel
+            downscaled_metadata['resolution'] = [self.resolution_z] + self.get_xy_resolution_25um()
+            downscaled_metadata['shape'] = downscaled_shape
+            downscaled_metadata['output'] = {
+                'type': 'tiff_series',
+                'path': downscaled_tiffs_folder
+            }
+            provenance_file_path = os.path.join(downscaled_tiffs_folder, f'.{settings.INFO_FILE_NAME}')
+            with open(provenance_file_path, 'w') as f:
+                f.write(json.dumps(downscaled_metadata))
+
         if self.rgb_tiffs_folder:
             rgb_metadata = metadata.copy()
             rgb_metadata['output'] = {
@@ -102,6 +150,16 @@ class jp2_reader(ImageReader):
             }
             with open(os.path.join(self.rgb_tiffs_folder, f'.{settings.INFO_FILE_NAME}'), 'w') as f:
                 f.write(json.dumps(rgb_metadata))
+        if self.downscaled_rgb_tiffs_folder:
+            downscaled_rgb_metadata = metadata.copy()
+            downscaled_rgb_metadata['resolution'] = [self.resolution_z] + self.get_xy_resolution_25um()
+            downscaled_rgb_metadata['shape'] = downscaled_shape
+            downscaled_rgb_metadata['output'] = {
+                'type': 'rgb_tiff_series',
+                'path': self.downscaled_rgb_tiffs_folder
+            }
+            with open(os.path.join(self.downscaled_rgb_tiffs_folder, f'.{settings.INFO_FILE_NAME}'), 'w') as f:
+                f.write(json.dumps(downscaled_rgb_metadata))
 
         job_ids = self.extract_tiff_series()
         return os.path.join(self.extracted_tiffs_folders[0], f'.{settings.INFO_FILE_NAME}'), job_ids
@@ -160,6 +218,12 @@ class jp2_reader(ImageReader):
         }
         if self.rgb_tiffs_folder:
             metadata['process']['auxiliary_outputs']['rgb_color'] = self.rgb_tiffs_folder
+        metadata['process']['auxiliary_outputs']['resolution_25_um'] = {
+            f'channel_{channel}': folder
+            for channel, folder in enumerate(self.downscaled_tiffs_folders)
+        }
+        if self.downscaled_rgb_tiffs_folder:
+            metadata['process']['auxiliary_outputs']['resolution_25_um_rgb_color'] = self.downscaled_rgb_tiffs_folder
         return metadata
 
     def extract_tiff_series(self):
@@ -192,6 +256,10 @@ class jp2_reader(ImageReader):
             f.write(self.output if ' ' not in self.output else f'"{self.output}"')
             f.write(' ')
             f.write('$SLURM_ARRAY_TASK_ID')
+            f.write(' ')
+            f.write(str(self.resolution_y))
+            f.write(' ')
+            f.write(str(self.resolution_x))
             f.write('\n')
 
         extra_args = {}
@@ -228,8 +296,11 @@ class jp2_reader(ImageReader):
         pattern = r'_z(\d+)\.tif'
         completed_indices = None
         output_folders = list(self.extracted_tiffs_folders)
+        output_folders.extend(self.downscaled_tiffs_folders)
         if self.rgb_tiffs_folder:
             output_folders.append(self.rgb_tiffs_folder)
+        if self.downscaled_rgb_tiffs_folder:
+            output_folders.append(self.downscaled_rgb_tiffs_folder)
 
         for output_folder in output_folders:
             files = os.listdir(output_folder)
