@@ -28,7 +28,7 @@ from glob import glob
 from pathlib import Path
 
 from analysis import settings
-from analysis.main import do_analysis
+# from analysis.main import do_analysis
 from operations import *
 from operations.base import ImageOperation, ImageReader
 

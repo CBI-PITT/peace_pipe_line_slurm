@@ -1,0 +1,38 @@
+use display False
+registration list:  [{'registration': [['Atlas', 'image'], ['Target', 'image']], 'source': '/h20/Public/klimstra-w/04CL49/analysis/ABC_stack1/emlddmm/resolution_level_4/channel_1/imaris_reader,emlddmm/registration_allen_mouse_100um/atlas.vtk', 'target': '/h20/Public/klimstra-w/04CL49/analysis/ABC_stack1/emlddmm/resolution_level_4/channel_1/imaris_reader,emlddmm/registration_allen_mouse_100um/raw.vtk', 'config': '/h20/Public/klimstra-w/04CL49/analysis/ABC_stack1/emlddmm/resolution_level_4/channel_1/imaris_reader,emlddmm/registration_allen_mouse_100um/atlas_to_target_config.json', 'output': '/h20/Public/klimstra-w/04CL49/analysis/ABC_stack1/emlddmm/resolution_level_4/channel_1/imaris_reader,emlddmm/registration_allen_mouse_100um'}] 
+
+running registrations...
+adding space Atlas to graph
+adding space Target to graph
+registering /h20/Public/klimstra-w/04CL49/analysis/ABC_stack1/emlddmm/resolution_level_4/channel_1/imaris_reader,emlddmm/registration_allen_mouse_100um/atlas.vtk to /h20/Public/klimstra-w/04CL49/analysis/ABC_stack1/emlddmm/resolution_level_4/channel_1/imaris_reader,emlddmm/registration_allen_mouse_100um/raw.vtk
+Source I shape (1, 115, 81, 133)
+Target J shape (1, 170, 61, 281)
+Found 3 scales
+/h20/CBI/Iana/src/emlddmm/emlddmm.py:188: RuntimeWarning: invalid value encountered in divide
+  J /= (vmax[:,None,None,None] - vmin[:,None,None,None])
+/h20/CBI/Iana/src/emlddmm/emlddmm.py:1445: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  v = torch.tensor(v.detach().clone(),device=device,dtype=dtype)
+/h20/CBI/Iana/src/emlddmm/emlddmm.py:1489: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  A = torch.tensor(A.detach().clone(),device=device,dtype=dtype)
+/h20/CBI/Iana/src/emlddmm/emlddmm.py:1574: RuntimeWarning: More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+  figErr = plt.figure()
+starting to transform from source Atlas image image to target space Target
+about to transform Atlas, atlas to the space Target
+Is the source a series? False
+Is the target a series? False
+reconstructing Atlas image in Target space
+This is mapping a 3D image to a 3D image
+Found an annotation image, not converting to float, and reloading with normalize false
+starting to transform from source Atlas image labels to target space Target
+about to transform Atlas, labels to the space Target
+Is the source a series? False
+Is the target a series? False
+found annotation, using nearest
+reconstructing Atlas labels in Target space
+This is mapping a 3D image to a 3D image
+starting to transform from source Target image image to target space Atlas
+about to transform Target, target to the space Atlas
+Is the source a series? False
+Is the target a series? False
+reconstructing Target image in Atlas space
+This is mapping a 3D image to a 3D image

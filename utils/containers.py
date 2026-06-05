@@ -33,16 +33,38 @@ def load_container_manifest(base_dir):
     return manifest
 
 
+def get_fallback_container_dir():
+    fallback_dir = settings.CONTAINER_FALLBACK_DIR
+    if fallback_dir is None:
+        return None
+    return str(fallback_dir)
+
+
 def resolve_container_path(container_name, base_dir):
     manifest = load_container_manifest(base_dir)
-    container_file = manifest.get('containers', {}).get(container_name, f'{container_name}.sif')
-    if not os.path.isabs(container_file):
-        container_file = os.path.join(base_dir, container_file)
-    if not os.path.exists(container_file):
-        raise FileNotFoundError(
-            f"Container '{container_name}' was not found. Expected file at '{container_file}'"
-        )
-    return container_file
+    checked_paths = []
+    manifest_container = manifest.get('containers', {}).get(container_name)
+
+    if manifest_container is not None:
+        if os.path.isabs(manifest_container):
+            checked_paths.append(manifest_container)
+        else:
+            checked_paths.append(os.path.join(base_dir, manifest_container))
+    else:
+        checked_paths.append(os.path.join(base_dir, f'{container_name}.sif'))
+
+    fallback_dir = get_fallback_container_dir()
+    if fallback_dir is not None:
+        checked_paths.append(os.path.join(fallback_dir, f'{container_name}.sif'))
+
+    for container_path in checked_paths:
+        if os.path.exists(container_path):
+            return container_path
+
+    checked_paths_text = '\n'.join(f'- {path}' for path in checked_paths)
+    raise FileNotFoundError(
+        f"Container '{container_name}' was not found. Checked:\n{checked_paths_text}"
+    )
 
 
 def quote_shell_arg(value):
