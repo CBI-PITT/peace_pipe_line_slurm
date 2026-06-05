@@ -28,6 +28,8 @@ def submit_stripes_removal_job_array():
     path_to_task = os.path.join(jobs_folder, f"remove_stripes_fft_rl{resolution_level}_c{channel}.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "do_stripes_removal.py")
+    from utils.containers import build_container_exec_prefix
+
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -36,9 +38,8 @@ def submit_stripes_removal_job_array():
         f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(input_dir if ' ' not in input_dir else f'"{input_dir}"')
         f.write(' ')

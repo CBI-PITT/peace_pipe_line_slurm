@@ -82,6 +82,8 @@ def extract_chunk_from_tiff_series_by_number(number):
 def write_detection_task_for_slurm(chunk_number, output_path):
     input_file = os.path.join(chunks_folder, f"chunk_{str(chunk_number).zfill(5)}.tif")
     output_dir = os.path.join(output_folder_sequence, "detection")
+    from utils.containers import build_container_exec_prefix
+
     with open(output_path, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -90,9 +92,8 @@ def write_detection_task_for_slurm(chunk_number, output_path):
         f.write(f"#SBATCH -o {jobs_folder}/logs_deepblink/slurm_deepblink_chunk_{str(chunk_number).zfill(5)}.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate deepblink")
-        f.write('\n')
-        f.write(f'deepblink predict -m {settings.DEEPBLINK_MODEL_PATH} -i')
+        f.write(build_container_exec_prefix('deepblink', os.path.dirname(os.path.abspath(__file__)), needs_gpu=True))
+        f.write(f' deepblink predict -m {settings.DEEPBLINK_MODEL_PATH} -i')
         f.write(' ')
         f.write(input_file if ' ' not in input_file else f'"{input_file}"')
         f.write(' -o ')
@@ -138,6 +139,7 @@ def convert_one_csv_to_napari_format_by_number(number, prerequisites=None):
     path_to_task = os.path.join(jobs_folder, f"napari_{chunk_number}.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "napari_one_chunk.py")
+    from utils.containers import build_container_exec_prefix
 
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
@@ -147,9 +149,8 @@ def convert_one_csv_to_napari_format_by_number(number, prerequisites=None):
         f.write(f"#SBATCH -o {jobs_folder}/logs_napari/slurm_napari_chunk_{str(number).zfill(5)}.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(str(number))
         f.write(' ')
@@ -187,6 +188,8 @@ def run_dbscan_on_chunk(chunk_number, prerequisites=None):
     slurm_script = os.path.join(os.path.dirname(main_script), "dbscan_one_chunk.py")
     input_file = os.path.join(napari_folder, f"napari_chunk_{str(chunk_number).zfill(5)}.csv")
     output_dir = os.path.join(output_folder_sequence, "dbscan")
+    from utils.containers import build_container_exec_prefix
+
     try:
         os.makedirs(output_dir)
     except:
@@ -200,9 +203,8 @@ def run_dbscan_on_chunk(chunk_number, prerequisites=None):
         f.write(f"#SBATCH -o {jobs_folder}/logs_dbscan/slurm_dbscan_chunk_{str(chunk_number).zfill(5)}.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate dbscan")
-        f.write('\n')
-        f.write(f'python {slurm_script} ')
+        f.write(build_container_exec_prefix('dbscan', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script} ')
         f.write(input_file if ' ' not in input_file else f'"{input_file}"')
         f.write(' ')
         f.write(output_dir if ' ' not in output_dir else f'"{output_dir}"')

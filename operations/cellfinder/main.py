@@ -100,6 +100,8 @@ class cellfinder(ImageOperation):
 
     def run_detection(self):
         path_to_task = os.path.join(self.jobs_folder, f"cellfinder_rl{self.resolution_level}_c{self.channel}.sh")
+        from utils.containers import build_container_exec_prefix
+
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             # f.write('ulimit -n 600000')
@@ -110,9 +112,8 @@ class cellfinder(ImageOperation):
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate cellfinder")
-            f.write('\n')
-            f.write('cellfinder -s ')
+            f.write(build_container_exec_prefix('cellfinder', os.path.dirname(os.path.abspath(__file__))))
+            f.write(' cellfinder -s ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' -b ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')

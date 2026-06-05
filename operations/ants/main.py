@@ -153,6 +153,8 @@ class ants(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"register_c{self.channel}_to_{self.atlas}.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "register_ants.py")
+        from utils.containers import build_container_exec_prefix
+
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
@@ -161,9 +163,8 @@ class ants(ImageOperation):
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate ants")
-            f.write('\n')
-            f.write(f'python {slurm_script} ')
+            f.write(build_container_exec_prefix('ants', os.path.dirname(main_script)))
+            f.write(f' python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
             f.write(self.registration_folder if ' ' not in self.registration_folder else f'"{self.registration_folder}"')

@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import shlex
 import subprocess
 from glob import glob
 
@@ -166,12 +165,17 @@ class jp2_reader(ImageReader):
 
     def inspect_jp2(self, jp2_path):
         inspect_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspect_jp2.py')
-        command = (
-            'source /h20/home/lab/miniconda3/bin/activate jp2 && '
-            f'python {shlex.quote(inspect_script)} {shlex.quote(jp2_path)}'
+        from utils.containers import build_container_python_command
+
+        command = build_container_python_command(
+            'jp2',
+            os.path.dirname(inspect_script),
+            inspect_script,
+            [jp2_path]
         )
         result = subprocess.run(
-            ['bash', '-lc', command],
+            command,
+            shell=True,
             capture_output=True,
             text=True
         )
@@ -239,6 +243,8 @@ class jp2_reader(ImageReader):
         path_to_task = os.path.join(self.jobs_folder, 'convert_jp2_to_tiff.sh')
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), 'convert_jp2_to_tiff.py')
+        from utils.containers import build_container_exec_prefix
+
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
@@ -247,9 +253,8 @@ class jp2_reader(ImageReader):
             f.write(f'#SBATCH -o {self.jobs_folder}/slurm_%j.out')
             f.write('\n')
             f.write('\n')
-            f.write('source /h20/home/lab/miniconda3/bin/activate jp2')
-            f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(build_container_exec_prefix('jp2', os.path.dirname(main_script)))
+            f.write(f' python {slurm_script}')
             f.write(' ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')

@@ -30,6 +30,8 @@ def launch_job_array():
     )
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "process_z_layer.py")
+    from utils.containers import build_container_exec_prefix
+
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -38,9 +40,8 @@ def launch_job_array():
         f.write(f"#SBATCH -o {jobs_folder}/slurm_delete_bg_detections_%A_%a.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(input_tiff_stack_dir)
         f.write(' ')

@@ -1,261 +1,181 @@
 # AGENTS Guide
 
 ## Scope
+This repository is the backend half of the PEACE pipeline.
+It watches JSON task files and submits image-processing work to SLURM.
+There is a closely related sibling app at `/h20/CBI/Iana/src/peace/generate_peace_json_test`.
+That Flask app generates the JSON consumed here.
+Treat the JSON schema between the two apps as a compatibility boundary.
 
-This workspace contains two related Python projects:
+## Related Rule Files
+Checked in this workspace on 2026-06-05:
 
-- `peace_pipe_line_slurm_test`: backend pipeline that watches JSON folders and submits SLURM jobs.
-- `generate_peace_json_test`: Flask app that generates those JSON task files.
+- Local `AGENTS.md` exists in this repo and in the sibling Flask repo.
+- No `.cursorrules` files found.
+- No `.cursor/rules/` directory found.
+- No `.github/copilot-instructions.md` file found.
 
-Treat them as two separate apps that must stay compatible at the JSON contract level.
+If any of those files are added later, update this guide.
 
-## Existing Agent Instructions
+## Agent Notes
+Before making code changes, read `AGENT_NOTES.md` in the repository root.
+After completing changes, append a short note with:
 
-There is currently no existing `AGENTS.md` in this workspace.
+- date
+- task summary
+- files changed
+- important decisions
+- follow-up items
 
-There are also no repo-local agent rule files present:
-
-- No `.cursorrules`
-- No `.cursor/rules/`
-- No `.github/copilot-instructions.md`
-
-If those files are added later, update this document to reflect them.
+Treat `AGENT_NOTES.md` as persistent working memory for future agents.
+Do not rewrite or remove prior notes unless explicitly asked.
 
 ## Repository Layout
+- `start_pipeline.py`: main watcher and JSON entry point.
+- `operations/`: built-in backend operations loaded by import.
+- `plugins/`: extra backend operations loaded dynamically.
+- `reader_plugins/`: dynamic reader plugins.
+- `operations/__init__.py`: registration list for built-in operations.
+- `operations/base/__init__.py`: `ImageOperation` and `ImageReader` base classes.
+- `analysis/settings.py`: runtime paths, SLURM settings, and constants.
+- `utils/slurm.py`: SLURM submission helpers and log parsing.
+- `README.md`: environment-specific usage notes.
 
-- Root: `/h20/CBI/Iana/src/peace`
-- Backend pipeline: `/h20/CBI/Iana/src/peace/peace_pipe_line_slurm_test`
-- Flask JSON generator: `/h20/CBI/Iana/src/peace/generate_peace_json_test`
+## Runtime Model
+The backend expects task JSON with these top-level keys:
 
-Important backend locations:
+```json
+{
+  "input": "/path/to/input",
+  "output": "/path/to/output",
+  "operation": "stretch_contrast",
+  "extras": {}
+}
+```
 
-- `start_pipeline.py`: long-running JSON watcher and entry point
-- `operations/`: built-in pipeline operations
-- `plugins/`: backend plugin operations
-- `reader_plugins/`: backend reader plugins
-- `analysis/settings.py`: runtime paths and pipeline settings
-- `utils/slurm.py`: SLURM submission helpers
+Important contract rules:
+- `extras` must be a dictionary.
+- Operation names must match import or plugin names exactly.
+- New form fields in the Flask app must match backend `kwargs.get(...)` names.
+- Do not rename JSON fields casually.
 
-Important Flask locations:
-
-- `flask_app/app.py`: Flask entry point
-- `flask_app/forms.py`: WTForms definitions
-- `flask_app/operations/`: UI operation plugins
-- `flask_app/templates/`: form and page templates
-- `flask_app/workflows/`: workflow JSON generation
-
-## Install Commands
-
-Backend pipeline:
+## Install And Run
+Install backend dependencies from this repository root:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
-Flask app:
-
-```bash
-python3 -m pip install -r requirements.txt
-```
-
-Notes:
-
-- The READMEs also reference environment-specific conda setups on the target infrastructure.
-- Many backend operations assume external tools, SLURM, and specific conda envs exist.
-
-## Run Commands
-
-Run the backend watcher locally from `peace_pipe_line_slurm_test`:
+Start the watcher locally:
 
 ```bash
 python3 start_pipeline.py
 ```
 
-Run the Flask app locally from `generate_peace_json_test/flask_app`:
+- Many operations assume SLURM, shared filesystem paths, and external conda envs exist.
+- Local development often supports syntax checks and code inspection better than full execution.
 
-```bash
-python3 app.py
-```
+## Build, Lint, And Test Commands
+There is no formal build system in this repo.
+There is also no configured linter, formatter, `pytest`, `tox`, `pyproject.toml`, `pytest.ini`, or `setup.cfg`.
+No test files were found in this repository during inspection.
 
-The Flask app binds to `0.0.0.0:1212` in the current code.
-
-## Build / Lint / Test Commands
-
-There is no formal build system in this workspace.
-
-There is also no configured linter, formatter, `pytest`, `tox`, `pyproject.toml`, `pytest.ini`, or `setup.cfg` here.
-
-Use these validation commands instead.
-
-### Syntax Check
-
-Check a single Python file:
-
+Use `py_compile` as the required lightweight validation step.
+Syntax check one file:
 ```bash
 python3 -m py_compile path/to/file.py
 ```
-
-Check multiple touched files:
-
+Syntax check several touched files:
 ```bash
-python3 -m py_compile file1.py file2.py file3.py
+python3 -m py_compile start_pipeline.py utils/slurm.py operations/stretch_contrast/main.py
 ```
-
-Recommended for backend changes:
-
+Syntax check all backend operation entrypoints:
 ```bash
-python3 -m py_compile start_pipeline.py operations/**/main.py operations/**/do_*.py
+python3 -m py_compile start_pipeline.py operations/*/main.py operations/*/do_*.py reader_plugins/*/*.py plugins/*/*.py
 ```
-
-Recommended for Flask changes:
-
+Closest equivalent to a single test today:
 ```bash
-python3 -m py_compile flask_app/app.py flask_app/forms.py flask_app/operations/*.py
+python3 -m py_compile path/to/touched_file.py
 ```
-
-### Tests
-
-There is currently no automated test suite checked into this workspace.
-
-Because there are no tests, there is no real “single test” command to run today.
-
-If a test file is added later and `pytest` is introduced, use the normal single-test form:
-
+If a real test suite is added later, use normal single-test commands such as:
 ```bash
 pytest path/to/test_file.py::test_name
 ```
 
-Until then, treat targeted `py_compile` plus manual validation as the required verification path.
+## Manual Validation
+For backend changes:
+- Create or inspect a representative JSON task.
+- Verify `operation` matches a built-in import or plugin class name.
+- Verify `extras` keys line up with the operation constructor and runtime lookups.
+- Verify `main.py` emits CLI arguments in the same order worker scripts expect.
+- Verify output provenance still writes `.${INFO_FILE_NAME}` metadata correctly.
 
-### Manual Validation
+For changes that affect the Flask generator indirectly:
+- Confirm the backend still accepts JSON produced by the sibling Flask app.
+- Spot-check any new parameter names on both sides of the contract.
 
-For Flask UI changes:
-
-- Start `flask_app/app.py`
-- Load the affected form in the browser
-- Submit a task
-- Inspect the generated JSON in the configured JSON folder
-
-For backend pipeline changes:
-
-- Create or inspect a representative JSON task
-- Verify the backend operation name matches an import in `operations/__init__.py`
-- Verify the operation class accepts the generated `extras`
-- Verify worker scripts accept the CLI arguments emitted by `main.py`
-
-## Change Workflow Expectations
-
+## Change Expectations
 - Keep changes minimal and local.
-- Preserve compatibility between Flask JSON generation and backend JSON consumption.
-- When adding a new pipeline operation, usually update both apps.
-- For new preprocessing operations, mirror the existing pattern used by `stretch_contrast` and similar operations.
+- Preserve compatibility with the sibling Flask app.
+- Follow the existing operation pattern instead of introducing new abstractions.
+- When adding a new operation, update registration, provenance, SLURM script generation, and worker CLI together.
+- Avoid broad refactors unless they are required to complete the task safely.
 
-Typical full-stack operation addition:
-
-1. Add a form class in `flask_app/forms.py`
-2. Add a Flask operation plugin in `flask_app/operations/`
-3. Choose the correct template, often `form_autofill_output.html` or a custom one
-4. Add a backend operation package in `peace_pipe_line_slurm_test/operations/`
-5. Register it in `peace_pipe_line_slurm_test/operations/__init__.py`
-6. Ensure provenance, SLURM script generation, and worker CLI stay aligned
-7. Run `python3 -m py_compile` on all touched Python files
+Typical backend operation shape:
+1. `main.py` prepares folders, provenance, and SLURM submission.
+2. `do_*.py` performs per-image or per-task processing.
+3. `__init__.py` exposes the operation class.
+4. `operations/__init__.py` registers built-in operations.
 
 ## Code Style
-
-Follow the existing codebase style rather than imposing a new framework-wide style.
-
-### Python Version and General Style
-
-- Use Python 3 syntax.
-- Prefer simple module-level functions and classes.
-- Keep logic explicit and imperative.
-- Avoid introducing heavy abstractions unless there is repeated need.
-- Match the current file’s style when editing older modules.
-
+Follow the style already present in each file.
+This codebase is mostly imperative Python with explicit state and path handling.
 ### Imports
-
-- Group imports in this order when practical:
-  1. standard library
-  2. third-party packages
-  3. local project imports
-- Prefer one import per line for readability.
-- Use relative imports inside backend operation packages when the surrounding code already does so, for example `from ..base import ImageOperation`.
+- Prefer standard library, then third-party, then local imports.
+- Keep imports simple and readable; one per line is preferred when practical.
+- Use relative imports inside operation packages when neighboring files already do.
 - Do not add unused imports.
 
 ### Formatting
-
 - Use 4-space indentation.
-- Keep blank lines similar to nearby code.
-- Prefer readable multi-line dicts and function calls over dense one-liners.
-- Keep string quoting consistent with the surrounding file.
-- Avoid introducing non-ASCII characters unless already required.
+- Keep blank lines and wrapping similar to surrounding code.
+- Prefer explicit multi-line dicts and function calls over dense one-liners.
+- Keep string quoting consistent with the file you are editing.
+- Default to ASCII unless the file already requires non-ASCII.
 
 ### Naming
-
-- Respect existing naming conventions even when inconsistent.
-- Backend operation class names are currently lower-case and match operation identifiers, for example `class stretch_contrast(ImageOperation)`.
-- Flask operation plugin classes use CapWords, for example `class StretchContrast(BaseOperation)`.
-- Form classes use CapWords and end with `Form`.
-- Keep JSON field names stable and lower-case with underscores.
-- Match operation folder names, operation string names, and registration imports exactly.
+- Respect existing naming even when inconsistent.
+- Backend operation class names are lower-case and match operation identifiers, for example `stretch_contrast`.
+- Base classes use CapWords, for example `ImageOperation` and `ImageReader`.
+- Directory names, operation names, and registration imports must stay aligned.
+- JSON keys should remain lower-case with underscores.
 
 ### Types
-
-- There is no established type-hinting convention in this codebase.
-- Do not add extensive type annotations unless you are already editing a typed area.
-- Prefer clear variable names and straightforward control flow over introducing partial typing.
+- There is no strong type-hinting convention here.
+- Do not add broad annotations just to modernize code.
+- Prefer straightforward control flow and clear variable names.
 
 ### Error Handling
+- Fail early on invalid inputs that would create broken SLURM jobs.
+- Raise specific built-in exceptions when adding new validation.
+- Preserve existing logging behavior in long-running entry points.
+- Do not silently swallow errors unless the surrounding module already does so intentionally.
+- Follow the existing JSON parsing and plugin-loading patterns in `start_pipeline.py`.
 
-- Fail early for invalid inputs that would otherwise create broken SLURM jobs.
-- Raise specific built-in exceptions when possible, such as `FileNotFoundError` or `ValueError`.
-- In long-running entry points, preserve the existing logging and exception behavior.
-- Do not silently swallow errors in new code unless the surrounding module already does that intentionally.
-- For JSON parsing and plugin lookup, follow the existing backend pattern in `start_pipeline.py`.
-
-### File and Path Handling
-
-- Use `os.path` consistently; that is the dominant pattern here.
+### Files, Paths, And Shell Commands
+- Prefer `os.path`; it is the dominant convention here.
+- Preserve existing `umask`, directory creation, and provenance-writing behavior.
 - Quote paths with spaces when generating shell commands.
-- Keep file permissions behavior intact where the existing code sets `umask` or `chmod`.
-- Preserve the backend convention of writing `.dataset_info.json` provenance files in output folders.
+- Be careful with SLURM command construction and dependency flags.
 
-### JSON Contract Rules
+### Dependencies And External Tools
+- Do not assume SLURM or cluster-only tools are available locally.
+- Do not replace environment-specific commands unless the task requires it.
+- Keep external package assumptions consistent with `requirements.txt` and README notes.
 
-- Flask emits JSON with top-level `input`, `output`, `operation`, and `extras`.
-- Backend expects `extras` to be a dictionary.
-- Do not rename JSON keys casually; treat them as a compatibility boundary.
-- When adding new form fields, make sure backend `kwargs.get(...)` names match the form field names.
-
-### SLURM Operation Pattern
-
-When adding or editing backend operations:
-
-- `main.py` should prepare folders, provenance, and SLURM submission.
-- `do_*.py` should do the per-task image processing work.
-- Keep worker CLI arguments in the same order as `main.py` emits them.
-- Support partial resume if the neighboring operation pattern already does.
-- Record operation parameters in provenance.
-
-### Flask UI Pattern
-
-- Prefer using existing form templates unless the UX requires a custom layout.
-- Use `form_autofill_output.html` when output should be derived from the first input path.
-- If a field must support both browsing and manual entry, a custom template is acceptable.
-- Keep operation categories aligned with how `app.py` groups operations.
-
-## What Not To Do
-
-- Do not invent a lint or formatter workflow that the repo does not use.
-- Do not add broad refactors while implementing a single operation.
-- Do not break the JSON schema between the Flask app and backend.
-- Do not assume SLURM, external data paths, or conda envs are available in local development.
-
-## Preferred Verification Summary
-
-For most changes in this repo, the expected verification is:
-
-1. `python3 -m py_compile` on every touched Python file
-2. manual inspection of generated JSON when changing Flask forms/plugins
-3. manual review of CLI argument alignment between backend `main.py` and worker scripts
-4. manual spot-check of provenance fields for new operation parameters
+## Agent Reminders
+- Read the touched operation end-to-end before editing it.
+- Read `AGENT_NOTES.md` before editing and append to it after each change set.
+- Check sibling worker scripts whenever `main.py` CLI arguments change.
+- Protect the JSON contract first; convenience refactors are secondary.
+- Run `python3 -m py_compile` on every touched Python file before finishing.

@@ -32,6 +32,8 @@ def launch_job_array():
     )
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "actual_operation.py")
+    from utils.containers import build_container_exec_prefix
+
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -40,9 +42,8 @@ def launch_job_array():
         f.write(f"#SBATCH -o {jobs_folder}/spotiflow_%A_%a.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate spotiflow")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('spotiflow', os.path.dirname(main_script), needs_gpu=True))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(input_tiff_stack_dir)
         f.write(' ')
@@ -104,6 +105,8 @@ def start_dbscan_job():
     slurm_script = os.path.join(os.path.dirname(main_script), "run_dbscan.py")
     input_file = os.path.join(save_folder, f'{model_name}_merged_df.csv')
     output_dir = save_folder
+    from utils.containers import build_container_exec_prefix
+
     try:
         os.makedirs(output_dir)
     except:
@@ -117,9 +120,8 @@ def start_dbscan_job():
         f.write(f"#SBATCH -o {jobs_folder}/logs_dbscan/slurm_spotiflow_dbscan.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate dbscan")
-        f.write('\n')
-        f.write(f'python {slurm_script} ')
+        f.write(build_container_exec_prefix('dbscan', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script} ')
         f.write(input_file if ' ' not in input_file else f'"{input_file}"')
         f.write(' ')
         f.write(output_dir if ' ' not in output_dir else f'"{output_dir}"')

@@ -92,6 +92,8 @@ class dbscan(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"dbscan_{self.epsilon}_{self.min_samples}.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "do_dbscan.py")
+        from utils.containers import build_container_exec_prefix
+
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
@@ -100,9 +102,8 @@ class dbscan(ImageOperation):
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate dbscan")
-            f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(build_container_exec_prefix('dbscan', os.path.dirname(main_script)))
+            f.write(f' python {slurm_script}')
             f.write(' ')
             f.write(self.points if ' ' not in self.points else f'"{self.points}"')
             f.write(' ')

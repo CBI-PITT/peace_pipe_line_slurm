@@ -76,6 +76,7 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
     path_to_task = os.path.join(jobs_folder, f"cpu_array_all_chunks.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
+    from utils.containers import build_container_exec_prefix
 
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
@@ -85,9 +86,8 @@ def submit_detection_cpu_slurm_array(number_of_chunks):
         f.write(f"#SBATCH -o {jobs_folder}/logs_process_one_chunk/slurm_deepblink_cpu_%A_%a.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-        f.write('\n')
-        f.write(f'python {slurm_script} ')
+        f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script} ')
         f.write(input_dir)
         f.write(' ')
         f.write(output_folder_sequence)

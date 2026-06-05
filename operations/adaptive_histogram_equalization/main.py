@@ -6,6 +6,7 @@ from glob import glob
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
+from utils.containers import build_container_exec_prefix
 from utils.slurm import split_slurm_array, submit_slurm_array
 
 
@@ -94,9 +95,8 @@ class adaptive_histogram_equalization(ImageOperation):
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-            f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+            f.write(f' python {slurm_script}')
             f.write(' ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')

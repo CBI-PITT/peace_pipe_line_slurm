@@ -7,12 +7,14 @@ def init():
     SETTINGS_FILE_PATH = ""
 
 
-JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/PEACE/JSON']
+JSON_FOLDERS = ['/h20/CBI/Iana/json/test']
+# JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/PEACE/JSON']
 TRASH_FOLDER = "/h20/trash"
 
 USERNAME = getpass.getuser()
 # USERNAME = 'lab'  # user that runs the pipeline
 HOME = Path.home()
+CONTAINER_RUNTIME = 'apptainer'
 
 SLURM_JOBS_NICE_LEVEL = 50000000
 SLURM_PARTITION_CPU = 'compute'
@@ -87,6 +89,7 @@ DASK_ALLOWED_NODES = ['pollux.cbiserver.pitt.edu.cbiserver.pitt.edu', 'deneb01',
 
 PREPROCESSING_METHOD_PREFIX_MAP = {
     'stretch_contrast': 'contrast_stretched',
+    'adaptive_histogram_equalization': 'adaptive_histogram_equalized',
     'subtract_background': 'background_subtracted',
     'subtract_background_iterative': 'background_subtracted_iterative',
     'denoise_fft': 'denoised',
@@ -95,6 +98,7 @@ PREPROCESSING_METHOD_PREFIX_MAP = {
 }
 PREPROCESSING_METHODS = [
     ['stretch_contrast'],
+    ['adaptive_histogram_equalization'],
     ['fft_2d_notch_filter'],
     ['fft_2d_notch_filter', 'stretch_contrast'],
     # ['fft_2d_notch_filter', 'stretch_contrast', 'subtract_background_iterative']
@@ -112,4 +116,3 @@ PREPROCESSING_METHODS = [
 #   analyze_cells_imaris,
 #   analyze_cells_cellfinder,
 #   visualize_cells
-

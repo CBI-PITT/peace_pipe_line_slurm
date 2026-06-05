@@ -76,6 +76,8 @@ class imaris_reader_crop(ImageReader):
         path_to_task = os.path.join(self.jobs_folder, f"extract_imaris_z_layers_rl{self.resolution_level}_c{self.channel}.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "extract_imaris_z_layer.py")
+        from utils.containers import build_container_exec_prefix
+
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
@@ -84,9 +86,8 @@ class imaris_reader_crop(ImageReader):
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO create a separate env?
-            f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+            f.write(f' python {slurm_script}')
             f.write(' ')
             f.write(str(self.input if ' ' not in self.input else f'"{self.input}"'))
             f.write(' ')
@@ -146,4 +147,3 @@ class imaris_reader_crop(ImageReader):
             "sequence": self.name
         }
         return options
-

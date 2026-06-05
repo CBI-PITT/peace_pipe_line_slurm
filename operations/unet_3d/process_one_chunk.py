@@ -84,6 +84,8 @@ def write_detection_task_for_slurm(chunk_number, output_path):
     output_dir = segmentation_folder
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "do_unet.py")
+    from utils.containers import build_container_exec_prefix
+
     with open(output_path, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -92,9 +94,8 @@ def write_detection_task_for_slurm(chunk_number, output_path):
         f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate unet_3d")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('unet_3d', os.path.dirname(main_script), needs_gpu=True))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(input_file if ' ' not in input_file else f'"{input_file}"')
         f.write(' ')

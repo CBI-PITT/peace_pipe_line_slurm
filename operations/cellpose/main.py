@@ -135,6 +135,8 @@ class cellpose(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"cpu_array_all_chunks.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "process_one_chunk.py")
+        from utils.containers import build_container_exec_prefix
+
         # nice_value = settings.PRIORITY_TO_NICE_MAP_GPU[self.priority]
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
@@ -144,9 +146,8 @@ class cellpose(ImageOperation):
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-            f.write('\n')
-            f.write(f'python {slurm_script} ')
+            f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+            f.write(f' python {slurm_script} ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
             f.write(' ')
             f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')

@@ -92,6 +92,8 @@ class transform_points(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"transform_points.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "get_structures_df.py")
+        from utils.containers import build_container_exec_prefix
+
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
@@ -100,9 +102,8 @@ class transform_points(ImageOperation):
             f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
             f.write('\n')
             f.write('\n')
-            f.write("source /h20/home/lab/miniconda3/bin/activate cellfinder")
-            f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(build_container_exec_prefix('cellfinder', os.path.dirname(main_script)))
+            f.write(f' python {slurm_script}')
             f.write(' ')
             f.write(self.cells_path if ' ' not in self.cells_path else f'"{self.cells_path}"')
             f.write(' ')

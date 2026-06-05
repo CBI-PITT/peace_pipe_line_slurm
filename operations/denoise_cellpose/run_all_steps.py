@@ -44,6 +44,8 @@ def submit_denoising_job_array():
     path_to_task = os.path.join(jobs_folder, f"cellpose_denoise_rl{resolution_level}_c{channel}.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "do_denoising.py")
+    from utils.containers import build_container_exec_prefix
+
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -52,9 +54,8 @@ def submit_denoising_job_array():
         f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate cellpose")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('cellpose', os.path.dirname(main_script), needs_gpu=True))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(input_dir if ' ' not in input_dir else f'"{input_dir}"')
         f.write(' ')
@@ -113,6 +114,8 @@ def submit_conversion_job_array():
     path_to_task = os.path.join(jobs_folder, f"cellpose_convert_rl{resolution_level}_c{channel}.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "save_as_uint.py")
+    from utils.containers import build_container_exec_prefix
+
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -121,9 +124,8 @@ def submit_conversion_job_array():
         f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(save_folder if ' ' not in save_folder else f'"{save_folder}"')
         f.write(' ')
@@ -174,6 +176,8 @@ def submit_min_max_job_array(input_dir, out_dir):
     path_to_task = os.path.join(jobs_folder, f"cellpose_min_max_rl{resolution_level}_c{channel}.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "get_min_max.py")
+    from utils.containers import build_container_exec_prefix
+
     with open(path_to_task, 'w') as f:
         f.write('#!/bin/bash\n')
         f.write('\n')
@@ -182,9 +186,8 @@ def submit_min_max_job_array(input_dir, out_dir):
         f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate peace")
-        f.write('\n')
-        f.write(f'python {slurm_script}')
+        f.write(build_container_exec_prefix('peace', os.path.dirname(main_script)))
+        f.write(f' python {slurm_script}')
         f.write(' ')
         f.write(input_dir if ' ' not in input_dir else f'"{input_dir}"')
         f.write(' ')

@@ -90,6 +90,8 @@ z_layers = metadata['shape'][-3]
 path_to_task = os.path.join(jobs_folder, f"resnet_z_layers_gpu.sh")
 main_script = os.path.abspath(__file__)
 slurm_script = os.path.join(os.path.dirname(main_script), "run_classification_z_layer.py")
+from utils.containers import build_container_exec_prefix
+
 with open(path_to_task, 'w') as f:
     f.write('#!/bin/bash\n')
     f.write('\n')
@@ -98,9 +100,8 @@ with open(path_to_task, 'w') as f:
     f.write(f"#SBATCH -o {jobs_folder}/slurm_%j.out")
     f.write('\n')
     f.write('\n')
-    f.write("source /h20/home/lab/miniconda3/bin/activate resnet_classification")
-    f.write('\n')
-    f.write(f'python {slurm_script}')
+    f.write(build_container_exec_prefix('resnet_classification', os.path.dirname(main_script), needs_gpu=True))
+    f.write(f' python {slurm_script}')
     f.write(' ')
     f.write(input_dir if ' ' not in input_dir else f'"{input_dir}"')
     f.write(' ')
