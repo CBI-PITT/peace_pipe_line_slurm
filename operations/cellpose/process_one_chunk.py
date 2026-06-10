@@ -107,6 +107,8 @@ def write_detection_task_for_slurm(chunk_number, output_path):
         f.write(str(signal_channel))
         f.write(' ')
         f.write(str(model))
+        f.write(' ')
+        f.write(str(diameter))
         f.write('\n')
 
 
@@ -182,8 +184,9 @@ resolution_level = int(sys.argv[3])
 signal_channel = int(sys.argv[4])
 chunk_number = int(sys.argv[5])
 model = sys.argv[6]
-username = sys.argv[7]
-priority = sys.argv[8]
+diameter = int(sys.argv[7])
+username = sys.argv[8]
+priority = sys.argv[9]
 
 metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
 source = metadata['source']
@@ -193,7 +196,11 @@ print("source", source)
 jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
 
 chunks_folder = os.path.join(output_folder_sequence, "chunks")
-segmentation_folder = os.path.join(output_folder_sequence, f"cellpose_model_{model}", "segmentation")
+segmentation_folder = os.path.join(
+    output_folder_sequence,
+    f"cellpose_model_{model}_diameter_{diameter}",
+    "segmentation"
+)
 if not os.path.exists(segmentation_folder):
     os.makedirs(segmentation_folder)
     # os.chmod(segmentation_folder, 0o774)

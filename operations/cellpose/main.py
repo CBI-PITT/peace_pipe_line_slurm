@@ -28,6 +28,7 @@ class cellpose(ImageOperation):
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.model = kwargs.get('model', 'general')
+        self.diameter = int(kwargs.get('diameter', 15))
 
         output_operation_folder = os.path.join(self.output, self.name)
         self.output_folder_sequence = os.path.join(
@@ -40,7 +41,7 @@ class cellpose(ImageOperation):
         self.jobs_folder = os.path.join(self.output_folder_sequence, "slurm_jobs")
         self.save_folder = os.path.join(
             self.output_folder_sequence,
-            f"cellpose_model_{self.model}"
+            f"cellpose_model_{self.model}_diameter_{self.diameter}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Cellpose prerequisites", self.prerequisites)
@@ -73,6 +74,7 @@ class cellpose(ImageOperation):
             "process": {
                 "parameters": {
                     "model_path": self.model,
+                    "diameter": self.diameter,
                 }
             },
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
@@ -151,7 +153,10 @@ class cellpose(ImageOperation):
             f.write(' ')
             f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {self.priority}')
+            f.write(
+                f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID '
+                f'{self.model} {self.diameter} {self.user} {self.priority}'
+            )
             f.write('\n')
 
         extra_args = {}
