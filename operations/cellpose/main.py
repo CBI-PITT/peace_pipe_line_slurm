@@ -9,6 +9,7 @@ import numpy as np
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
+from utils.slurm import submit_slurm_job
 from utils.slurm import submit_slurm_array
 
 
@@ -27,6 +28,9 @@ class cellpose(ImageOperation):
         self.resolution_level = int(self.metadata['resolution_level'])
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
+        self.implementation = kwargs.get('implementation', '3d_chunks')
+        if self.implementation not in ['3d_chunks', '2d_planes']:
+            raise ValueError(f"Unknown cellpose implementation: {self.implementation}")
         self.model = kwargs.get('model', 'general')
         self.diameter = int(kwargs.get('diameter', 15))
 
@@ -41,7 +45,7 @@ class cellpose(ImageOperation):
         self.jobs_folder = os.path.join(self.output_folder_sequence, "slurm_jobs")
         self.save_folder = os.path.join(
             self.output_folder_sequence,
-            f"cellpose_model_{self.model}_diameter_{self.diameter}"
+            f"cellpose_model_{self.model}_diameter_{self.diameter}_impl_{self.implementation}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Cellpose prerequisites", self.prerequisites)
@@ -54,8 +58,13 @@ class cellpose(ImageOperation):
             os.makedirs(self.save_folder)
 
     def run(self):
-        print("Running cellpose in chunks")
         provenance_file_path = self.create_provenance()
+        if self.implementation == '2d_planes':
+            print("Running cellpose in 2D mode")
+            job_ids = self.submit_detection_2d_slurm()
+            return provenance_file_path, job_ids
+
+        print("Running cellpose in chunks")
         number_of_chunks = self.get_chunking()
         print("number of chunks", number_of_chunks)
         job_ids = self.submit_detection_cpu_slurm_array(number_of_chunks)
@@ -73,6 +82,7 @@ class cellpose(ImageOperation):
             },
             "process": {
                 "parameters": {
+                    "implementation": self.implementation,
                     "model_path": self.model,
                     "diameter": self.diameter,
                 }
@@ -88,6 +98,48 @@ class cellpose(ImageOperation):
         with open(provenance_file_path, "w") as f:
             f.write(json.dumps(provenance))
         return provenance_file_path
+
+    def submit_detection_2d_slurm(self):
+        path_to_task = os.path.join(self.jobs_folder, "run_cellpose_2d.sh")
+        with open(path_to_task, 'w') as f:
+            f.write('#!/bin/bash\n')
+            f.write('\n')
+            f.write(f"#SBATCH -J {self.user}-cellpose-2d")
+            f.write('\n')
+            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write('\n')
+            f.write('\n')
+            f.write("source /h20/home/lab/miniconda3/bin/activate cellpose")
+            f.write('\n')
+            f.write('cellpose')
+            f.write(' --dir ')
+            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(f' --pretrained_model {self.model}')
+            f.write(' --chan 0')
+            f.write(f' --diameter {self.diameter}')
+            f.write(' --save_tif')
+            f.write(' --savedir ')
+            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(' --use_gpu')
+            f.write(' --no_npy')
+            f.write(' --verbose')
+            f.write('\n')
+
+        extra_args = {}
+        if self.prerequisites:
+            extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
+            extra_args['--kill-on-invalid-dep'] = 'yes'
+
+        job_ids = submit_slurm_job(
+            path_to_task,
+            partition=settings.SLURM_PARTITION_GPU,
+            needs_gpu=True,
+            cores=8,
+            memory=64,
+            priority=self.priority,
+            extra_args=extra_args
+        )
+        return job_ids
 
     def get_chunking(self):
         tiff_stack_shape = self.metadata['shape']
