@@ -22,16 +22,18 @@ OUTPUT_DIR = sys.argv[2]
 resolution_level = sys.argv[3]
 channel = sys.argv[4]
 model = sys.argv[5]
+diameter = int(sys.argv[6])
 
 print("OUTPUT_DIR", OUTPUT_DIR)
 print("resolution_level", resolution_level)
 print("channel", channel)
 print("model", model)
+print("diameter", diameter)
 
 
-def segment(image, model):
+def segment(image, model, diameter):
     model = models.CellposeModel(gpu=True, model_type=model)
-    mask, _, _ = model.eval(image, do_3D=False, diameter=15, stitch_threshold=0.4, anisotropy=4.5)
+    mask, _, _ = model.eval(image, do_3D=False, diameter=diameter, stitch_threshold=0.4, anisotropy=4.5)
     return mask
 
 
@@ -50,6 +52,6 @@ if os.path.exists(output_file):
 
 print("Running cellpose")
 img = tifffile.imread(input_file)
-img = segment(img, model)
+img = segment(img, model, diameter)
 tifffile.imwrite(output_file, img)
 print("Done")
