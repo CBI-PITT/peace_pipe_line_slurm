@@ -27,6 +27,8 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 
+import tifffile
+
 from analysis import settings
 from analysis.main import do_analysis
 from operations import *
@@ -49,6 +51,88 @@ log = logging.getLogger(__name__)
 
 
 json_settings = {}
+
+
+def bootstrap_tiff_series_metadata(input_path, output_path=None):
+    info_file_path = os.path.join(input_path, f'.{settings.INFO_FILE_NAME}')
+    if os.path.exists(info_file_path):
+        return info_file_path
+
+    if not input_path or not os.path.isdir(input_path):
+        return None
+
+    tif_files = sorted(glob(os.path.join(input_path, '*.tif')))
+    tif_files.extend(sorted(glob(os.path.join(input_path, '*.tiff'))))
+    if not tif_files:
+        return None
+
+    first_image = tifffile.imread(tif_files[0])
+    if len(first_image.shape) < 2:
+        raise ValueError(f'Unable to infer TIFF series shape from {tif_files[0]}')
+
+    y, x = first_image.shape[-2:]
+    z = len(tif_files)
+    base_output_dir = output_path or os.path.dirname(input_path)
+
+    metadata = {
+        'out_name': base_output_dir,
+        'source': input_path,
+        'orientation': 'sal',
+        'channels': 1,
+        'background_channel': 0,
+        'volume_100um_location': '',
+        'resolution': [1, 1, 1],
+        'shape': [z, y, x],
+        'resolution_level': 0,
+        'full_resolution': [1, 1, 1],
+        'full_shape': [z, y, x],
+        'input': {
+            'type': 'tiff_series',
+            'path': input_path
+        },
+        'output': {
+            'type': 'tiff_series',
+            'path': input_path
+        },
+        'process': {
+            'bootstrapped_metadata': True,
+            'bootstrapped_defaults': {
+                'resolution': [1, 1, 1],
+                'orientation': 'sal'
+            }
+        },
+        'base_output_dir': base_output_dir,
+        'base_input_dir': input_path,
+        'sequence': 'tiff_series_bootstrap',
+        'channel': 0
+    }
+
+    os.umask(settings.UMASK)
+    with open(info_file_path, 'w') as f:
+        f.write(json.dumps(metadata))
+    os.chmod(info_file_path, 0o660)
+    log.warning(
+        'Bootstrapped missing %s for TIFF series %s using default resolution %s and orientation %s',
+        settings.INFO_FILE_NAME,
+        input_path,
+        metadata['resolution'],
+        metadata['orientation']
+    )
+    return info_file_path
+
+
+def ensure_input_metadata(input_path, output_path=None):
+    info_file_path = os.path.join(input_path, f'.{settings.INFO_FILE_NAME}')
+    if os.path.exists(info_file_path):
+        return info_file_path
+
+    bootstrapped = bootstrap_tiff_series_metadata(input_path, output_path)
+    if bootstrapped:
+        return bootstrapped
+
+    raise FileNotFoundError(
+        f'Missing {info_file_path}. Input is not a recognized TIFF series folder and cannot be bootstrapped.'
+    )
 
 
 def load_plugins(plugin_folder):
@@ -126,6 +210,8 @@ def start_pipeline_slurm(settings_file_path):
     except AttributeError:
         print(f"Attempting to load plugin for operation {OPERATION}")
         operation_class = plugins[OPERATION]
+    if issubclass(operation_class, ImageOperation):
+        ensure_input_metadata(INPUT, OUTPUT)
     operation = operation_class(INPUT, OUTPUT, **EXTRAS)
     operation.run()
 
@@ -225,6 +311,8 @@ def start_workflow_slurm(settings_file_path):
         print("input", input)
         print("output", output)
         print("extras", extras)
+        if issubclass(operation_class, ImageOperation):
+            ensure_input_metadata(input, output)
         operation = operation_class(input, output, **extras)
         provenance, prerequisites = operation.run()
         print("================ got provenance:", provenance)
