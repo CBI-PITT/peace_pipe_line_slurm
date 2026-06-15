@@ -1,4 +1,5 @@
 from glob import glob
+import json
 import logging
 import os
 
@@ -10,9 +11,22 @@ import tifffile
 
 from analysis import settings
 from analysis.guess_brain_orientation import guess_orientation
-from analysis.utils import read_info_file
 
 log = logging.getLogger(__name__)
+
+
+def read_info_file(output_folder):
+    """
+    Read json file that describes analysis of this brain.
+    """
+    info_file_path = os.path.join(output_folder, settings.INFO_FILE_NAME)
+    log.debug(f"Reading dataset_info file at {info_file_path}")
+
+    with open(info_file_path, "r") as f:
+        options_str = f.read()
+    options = json.loads(options_str)
+    return options
+
 
 
 def guess_by_histogram_max(ims_file):
