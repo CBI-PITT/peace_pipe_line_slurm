@@ -7,21 +7,20 @@ def init():
     SETTINGS_FILE_PATH = ""
 
 
-# JSON_FOLDERS = ['/h20/CBI/Iana/json/test']
-JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/PEACE/JSON']
-TRASH_FOLDER = "/h20/trash"
+JSON_FOLDERS = [Path.home() / "json"]
+TRASH_FOLDER = Path.home() / "trash"
 
 USERNAME = getpass.getuser()
 # USERNAME = 'lab'  # user that runs the pipeline
 HOME = Path.home()
 CONTAINER_RUNTIME = 'apptainer'
-CONTAINER_FALLBACK_DIR = None
+CONTAINER_FALLBACK_DIR = Path.home() / "containers"
 
 SLURM_JOBS_NICE_LEVEL = 50000000
 SLURM_PARTITION_CPU = 'compute'
-SLURM_PARTITION_GPU = 'gpu'
-SLURM_PARTITION_HIGH_RAM = 'gpu'
-SLURM_PARTITION_EXTREME = 'ai'
+SLURM_PARTITION_GPU = 'compute'
+SLURM_PARTITION_HIGH_RAM = 'compute'
+SLURM_PARTITION_EXTREME = 'compute'
 
 GPU_ENABLED_PARTITIONS = [
     SLURM_PARTITION_GPU,
@@ -61,10 +60,10 @@ JOBS_FILE_NAME = "jobs.json"
 SUFFIX_100UM_VOLUME = '_100_100_100.tif'
 # PROCESSED_IMS_LOCATION = '/h20/CBI/Iana/processed_ims_files.json'
 # IN_PROGRESS_IMS_LOCATION = '/h20/CBI/Iana/in_progress_ims_files.json'
-LOG_FILE_NAME_PATTERN = "/h20/CBI/Iana/logs/analysis_pipeline_log_{}_{}.txt"
+LOG_FILE_NAME_PATTERN = Path.home() / "logs" / "analysis_pipeline_log_{}_{}.txt"
 TIMESTAMP_FORAMT = '%Y-%m-%d_%H:%M:%S'
 # REGISTRATION_INFO_FILE_NAME = "registration_info.json"
-DEEPBLINK_MODEL_PATH = '/h20/CBI/Iana/src/deepblink/models/deepblink_particle.h5'  # model for deepBlink cell detection
+DEEPBLINK_MODEL_PATH = Path.home() / "models" / "deepblink_particle.h5"  # model for deepBlink cell detection
 DEEPBLINK_CHUNK_SIZE = (40, 1700, 3500)
 # DB_TYPE = "sqlite3"
 # MYSQL_DB_NAME = "temp_cells"
