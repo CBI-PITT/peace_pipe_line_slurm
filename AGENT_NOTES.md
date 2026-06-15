@@ -21,3 +21,7 @@ Append new notes; do not delete older entries unless explicitly asked.
 - Files changed: `analysis/settings.py`, `utils/containers.py`
 - Important decisions: Added `CONTAINER_FALLBACK_DIR = None` to settings; container resolution order is now local `containers.json` path if present, local `<env_name>.sif`, then `<CONTAINER_FALLBACK_DIR>/<env_name>.sif` when configured.
 - Follow-up items: Set `CONTAINER_FALLBACK_DIR` on deployed clusters; missing-container errors now list all checked paths to simplify debugging.
+
+- 2026-06-12: Updated backend `AGENTS.md` to require reading root and backend notes before changes and appending backend notes after backend file changes.
+- 2026-06-15: Added backend reader plugin `reader_plugins/ome_zarr_reader/` with metadata extraction, TIFF slice export, and 100um volume generation for `.ome.zarr` datasets stored as top-level `scale0`, `scale1`, etc. arrays.
+
