@@ -138,6 +138,7 @@ class brainreg(ImageOperation):
             f.write('\n')
             f.write('\n')
             f.write('set -e\n')
+            f.write('unset SLURM_JOB_ID SLURM_JOBID SLURM_CPUS_PER_TASK SLURM_NTASKS SLURM_JOB_CPUS_PER_NODE\n')
             f.write(build_container_exec_prefix('brainreg', os.path.dirname(os.path.abspath(__file__))))
             f.write(' brainreg ')
             f.write(self.input if ' ' not in self.input else f'"{self.input}"')
