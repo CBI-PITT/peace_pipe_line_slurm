@@ -42,8 +42,15 @@ def extract_volume_at_resolution(channel=0, output_resolution=(100, 100, 100)):
     workingVolumeResolution = metadata['multiscales'][0]['datasets'][resolutionLevelToExtract]['coordinateTransformations'][0]['scale'][-3:]
     print('Reading ResolutionLevel {}'.format(resolutionLevelToExtract))
 
+    if os.path.exists(os.path.join(input_dir, f'scale{resolutionLevelToExtract}')):
+        scale_dir = f'scale{resolutionLevelToExtract}'
+    elif os.path.exists(os.path.join(input_dir, f's{resolutionLevelToExtract}')):
+        scale_dir = f's{resolutionLevelToExtract}'
+    else:
+        scale_dir = f'{resolutionLevelToExtract}'
+
     root = zarr.open(input_dir, mode='r')
-    zarray = root[f'scale{resolutionLevelToExtract}']
+    zarray = root[scale_dir]
     dask_zarray = da.array(zarray)
 
     workingVolume = dask_zarray[0, channel, :, :, :].compute()

@@ -37,7 +37,12 @@ class ome_zarr_reader(ImageReader):
             os.makedirs(self.extracted_tiffs_folder)
 
     def get_scale_path(self, resolution_level):
-        return f'scale{resolution_level}'
+        if os.path.exists(os.path.join(self.input, f'scale{resolution_level}')):
+            return f'scale{resolution_level}'
+        elif os.path.exists(os.path.join(self.input, f's{resolution_level}')):
+            return f's{resolution_level}'
+        else:
+            return f'{resolution_level}'
 
     def get_scale_array(self, resolution_level):
         root = zarr.open(self.input, mode='r')

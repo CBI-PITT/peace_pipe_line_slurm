@@ -25,9 +25,15 @@ resolution_level = int(sys.argv[3])
 channel = int(sys.argv[4])
 z = int(sys.argv[5])
 
+if os.path.exists(os.path.join(input_dir, f'scale{resolution_level}')):
+    scale_dir = f'scale{resolution_level}'
+elif os.path.exists(os.path.join(input_dir, f's{resolution_level}')):
+    scale_dir = f's{resolution_level}'
+else:
+    scale_dir = f'{resolution_level}'
 
 root = zarr.open(input_dir, mode='r')
-zarray = root[f'scale{resolution_level}']
+zarray = root[scale_dir]
 dask_zarray = da.array(zarray)
 
 plane = dask_zarray[0, channel, z, :, :].compute()
