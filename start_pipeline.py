@@ -22,7 +22,6 @@ import logging
 import os
 import sys
 import time
-import traceback
 from datetime import datetime
 from glob import glob
 from pathlib import Path
@@ -51,6 +50,10 @@ log = logging.getLogger(__name__)
 
 
 json_settings = {}
+
+
+STATUS_DONE = 'done'
+STATUS_ERR = 'err'
 
 
 def bootstrap_tiff_series_metadata(input_path, output_path=None):
@@ -135,6 +138,36 @@ def ensure_input_metadata(input_path, output_path=None):
     )
 
 
+def move_settings_file(settings_file_path, destination_folder):
+    destination_path = os.path.join(destination_folder, os.path.basename(settings_file_path))
+    if not os.path.exists(settings_file_path):
+        log.warning('Unable to move %s to %s because the source file is missing', settings_file_path, destination_folder)
+        return
+
+    try:
+        os.replace(settings_file_path, destination_path)
+    except Exception:
+        log.exception('Unable to move %s to %s', settings_file_path, destination_path)
+
+
+def process_settings_file(settings_file_path, json_folder, job_type, handler):
+    print('Starting processing')
+    setattr(settings, 'SETTINGS_FILE_PATH', settings_file_path)
+
+    try:
+        status = handler(settings_file_path)
+    except Exception:
+        log.exception('Unhandled error while processing %s job %s', job_type, settings_file_path)
+        status = STATUS_ERR
+
+    if status not in [STATUS_DONE, STATUS_ERR]:
+        log.error('Unexpected status %s while processing %s job %s', status, job_type, settings_file_path)
+        status = STATUS_ERR
+
+    destination_folder = os.path.join(json_folder, status)
+    move_settings_file(settings_file_path, destination_folder)
+
+
 def load_plugins(plugin_folder):
     operations = {}
     for plugin_name in os.listdir(plugin_folder):
@@ -191,9 +224,9 @@ def start_pipeline_slurm(settings_file_path):
         settings_str = f.read()
         try:
             json_settings = json.loads(settings_str)
-        except:
+        except Exception:
             log.exception("Unable to parse settings json")
-            return
+            return STATUS_ERR
 
     INPUT = json_settings.get('input')
     OUTPUT = json_settings.get('output')
@@ -204,16 +237,26 @@ def start_pipeline_slurm(settings_file_path):
     EXTRAS = json_settings.get('extras', {})
     if type(EXTRAS) != dict:
         log.exception("Field 'extras' needs to be a mapping/dictionary")
-        return
+        return STATUS_ERR
     try:
         operation_class = getattr(sys.modules[__name__], OPERATION)
     except AttributeError:
         print(f"Attempting to load plugin for operation {OPERATION}")
-        operation_class = plugins[OPERATION]
-    if issubclass(operation_class, ImageOperation):
-        ensure_input_metadata(INPUT, OUTPUT)
-    operation = operation_class(INPUT, OUTPUT, **EXTRAS)
-    operation.run()
+        operation_class = plugins.get(OPERATION)
+    if operation_class is None:
+        log.exception("Unknown operation %s", OPERATION)
+        return STATUS_ERR
+
+    try:
+        if issubclass(operation_class, ImageOperation):
+            ensure_input_metadata(INPUT, OUTPUT)
+        operation = operation_class(INPUT, OUTPUT, **EXTRAS)
+        operation.run()
+    except Exception:
+        log.exception('Unable to run pipeline job %s', settings_file_path)
+        return STATUS_ERR
+
+    return STATUS_DONE
 
 
 def start_reader_slurm(settings_file_path):
@@ -223,27 +266,37 @@ def start_reader_slurm(settings_file_path):
         settings_str = f.read()
         try:
             json_settings = json.loads(settings_str)
-        except:
+        except Exception:
             log.exception("Unable to parse settings json")
-            return
+            return STATUS_ERR
 
     INPUT = json_settings.get('input')
     OUTPUT = json_settings.get('output')
     OPERATION = json_settings.get('operation')
     if not INPUT or not OUTPUT or not OPERATION:
         log.exception("Fields 'input', 'output' and 'operation' are required in the JSON")
-        return
+        return STATUS_ERR
     EXTRAS = json_settings.get('extras', {})
     if type(EXTRAS) != dict:
         log.exception("Field 'extras' needs to be a mapping/dictionary")
-        return
+        return STATUS_ERR
     try:
         operation_class = getattr(sys.modules[__name__], OPERATION)
     except AttributeError:
         print(f"Attempting to load plugin for operation {OPERATION}")
-        operation_class = reader_plugins[OPERATION]
-    operation = operation_class(INPUT, OUTPUT, **EXTRAS)
-    operation.run()
+        operation_class = reader_plugins.get(OPERATION)
+    if operation_class is None:
+        log.exception("Unknown reader operation %s", OPERATION)
+        return STATUS_ERR
+
+    try:
+        operation = operation_class(INPUT, OUTPUT, **EXTRAS)
+        operation.run()
+    except Exception:
+        log.exception('Unable to run reader job %s', settings_file_path)
+        return STATUS_ERR
+
+    return STATUS_DONE
 
 
 def start_workflow_slurm(settings_file_path):
@@ -252,11 +305,14 @@ def start_workflow_slurm(settings_file_path):
         settings_str = f.read()
         try:
             json_settings = json.loads(settings_str)
-        except:
+        except Exception:
             log.exception("Unable to parse settings json")
-            return
+            return STATUS_ERR
     outputs = {}
-    steps = json_settings["steps"]
+    steps = json_settings.get("steps")
+    if not isinstance(steps, list):
+        log.exception("Field 'steps' must be a list")
+        return STATUS_ERR
     # operation_outputs = {x['operation']: x['output_name'] for x in steps}
     operation_outputs = {}
 
@@ -280,6 +336,9 @@ def start_workflow_slurm(settings_file_path):
             print('operation_class', operation_class)
             if not operation_class:
                 operation_class = plugins.get(operation_name)
+        if operation_class is None:
+            log.exception("Unknown workflow operation %s", operation_name)
+            return STATUS_ERR
 
         input = ""
         output = ""
@@ -311,63 +370,44 @@ def start_workflow_slurm(settings_file_path):
         print("input", input)
         print("output", output)
         print("extras", extras)
-        if issubclass(operation_class, ImageOperation):
-            ensure_input_metadata(input, output)
-        operation = operation_class(input, output, **extras)
-        provenance, prerequisites = operation.run()
+        try:
+            if issubclass(operation_class, ImageOperation):
+                ensure_input_metadata(input, output)
+            operation = operation_class(input, output, **extras)
+            provenance, prerequisites = operation.run()
+        except Exception:
+            log.exception('Unable to run workflow step %s from %s', operation_name, settings_file_path)
+            return STATUS_ERR
         print("================ got provenance:", provenance)
         print("================ got job ids:", prerequisites)
         outputs[extended_operation_name] = {'provenance': provenance, 'prerequisites': prerequisites}
 
+    return STATUS_DONE
+
 
 while True:
     for json_folder in settings.JSON_FOLDERS:
-        print(f"Looking for tasks in {json_folder}...")
-        ### look for reader tasks ###
-        reader_json_files = sorted(glob(os.path.join(json_folder, f'SLURM_reader*.json')))
-        print(len(reader_json_files), "Reader JSON files found")
-        for reader_json_file in reader_json_files:
-            print("Starting processing")
-            settings_file_path = reader_json_file
-            setattr(settings, "SETTINGS_FILE_PATH", settings_file_path)
-            try:
-                start_reader_slurm(settings_file_path)
-            except Exception as e:
-                os.rename(settings_file_path, os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
-                print(f"ERROR: {e}")
-                print(traceback.format_exc())
-            else:
-                os.rename(settings_file_path, os.path.join(json_folder, 'done', os.path.basename(settings_file_path)))
+        try:
+            print(f"Looking for tasks in {json_folder}...")
+            ### look for reader tasks ###
+            reader_json_files = sorted(glob(os.path.join(json_folder, f'SLURM_reader*.json')))
+            print(len(reader_json_files), "Reader JSON files found")
+            for reader_json_file in reader_json_files:
+                process_settings_file(reader_json_file, json_folder, 'reader', start_reader_slurm)
 
-        ### look for processing tasks ###
-        json_files = sorted(glob(os.path.join(json_folder, f'SLURM_settings*.json')))
-        print(len(json_files), "JSON files found")
-        for json_file in json_files:
-            print("Starting processing")
-            settings_file_path = json_file
-            setattr(settings, "SETTINGS_FILE_PATH", settings_file_path)
-            try:
-                start_pipeline_slurm(settings_file_path)
-            except Exception as e:
-                os.rename(settings_file_path,os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
-                print(traceback.format_exc())
-            else:
-                os.rename(settings_file_path, os.path.join(json_folder, 'done', os.path.basename(settings_file_path)))
+            ### look for processing tasks ###
+            json_files = sorted(glob(os.path.join(json_folder, f'SLURM_settings*.json')))
+            print(len(json_files), "JSON files found")
+            for json_file in json_files:
+                process_settings_file(json_file, json_folder, 'pipeline', start_pipeline_slurm)
 
-        ### look for workflows ###
-        workflow_json_files = sorted(glob(os.path.join(json_folder, f'SLURM_workflow*.json')))
-        print(len(workflow_json_files), "workflow JSON files found")
-        for workflow_json_file in workflow_json_files:
-            print("Starting processing")
-            settings_file_path = workflow_json_file
-            setattr(settings, "SETTINGS_FILE_PATH", settings_file_path)
-            try:
-                start_workflow_slurm(settings_file_path)
-            except Exception as e:
-                os.rename(settings_file_path, os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
-                print(traceback.format_exc())
-            else:
-                os.rename(settings_file_path, os.path.join(json_folder, 'done', os.path.basename(settings_file_path)))
+            ### look for workflows ###
+            workflow_json_files = sorted(glob(os.path.join(json_folder, f'SLURM_workflow*.json')))
+            print(len(workflow_json_files), "workflow JSON files found")
+            for workflow_json_file in workflow_json_files:
+                process_settings_file(workflow_json_file, json_folder, 'workflow', start_workflow_slurm)
+        except Exception:
+            log.exception('Unhandled error while scanning json folder %s', json_folder)
 
         print("Waining 30 seconds...")
         time.sleep(5)
