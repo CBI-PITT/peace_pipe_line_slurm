@@ -18,6 +18,8 @@ class denoise_cellpose(ImageOperation):
         super().__init__(input, output, **kwargs)
         self.name = 'denoise_cellpose'
         self.metadata = json.load(open(os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'), 'r'))
+        if not self.output:
+            self.output = self.metadata.get("base_output_dir", self.metadata.get("out_name"))
         self.sequence = ",".join([self.metadata.get("sequence", ""), self.name])
         self.channel = int(self.metadata['channel'])
         self.resolution_level = int(self.metadata['resolution_level'])
@@ -93,9 +95,13 @@ class denoise_cellpose(ImageOperation):
         path_to_task = os.path.join(self.jobs_folder, f"run_all_steps.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "run_all_steps.py")
+        print("self output", self.output)
         path_parts = self.output.split('/')
-        user_pos = path_parts.index(self.user)
-        experiment = "_".join(path_parts[user_pos + 1:])
+        if self.user in path_parts:
+            user_pos = path_parts.index(self.user)
+            experiment = "_".join(path_parts[user_pos + 1:])
+        else:
+            experiment = os.path.basename(self.output.rstrip('/'))
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
