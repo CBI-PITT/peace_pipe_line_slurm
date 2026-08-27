@@ -33,6 +33,7 @@ from analysis import settings
 from analysis.main import do_analysis
 from operations import *
 from operations.base import ImageOperation, ImageReader
+from utils.job_history import infer_log_folder, mark_dispatch_failure, update_record, update_workflow_step
 
 
 console_handler = logging.StreamHandler()
@@ -51,6 +52,17 @@ log = logging.getLogger(__name__)
 
 
 json_settings = {}
+
+
+def update_submission_history_for_failure(settings_file_path, error_text):
+    try:
+        with open(settings_file_path, 'r') as f:
+            payload = json.load(f)
+    except Exception:
+        return
+    history_file = payload.get('history_file')
+    if history_file:
+        mark_dispatch_failure(history_file, error_text)
 
 
 def bootstrap_tiff_series_metadata(input_path, output_path=None):
@@ -198,6 +210,7 @@ def start_pipeline_slurm(settings_file_path):
     INPUT = json_settings.get('input')
     OUTPUT = json_settings.get('output')
     OPERATION = json_settings.get('operation')
+    history_file = json_settings.get('history_file')
     # if not INPUT or not OUTPUT or not OPERATION:
     #     log.exception("Fields 'input', 'output' and 'operation' are required in the JSON")
     #     return
@@ -213,7 +226,17 @@ def start_pipeline_slurm(settings_file_path):
     if issubclass(operation_class, ImageOperation):
         ensure_input_metadata(INPUT, OUTPUT)
     operation = operation_class(INPUT, OUTPUT, **EXTRAS)
-    operation.run()
+    if history_file:
+        update_record(history_file, {'status': 'dispatching', 'dispatch_error': None})
+    provenance, job_ids = operation.run()
+    if history_file:
+        update_record(history_file, {
+            'status': 'submitted',
+            'slurm_job_ids': job_ids,
+            'provenance_path': provenance,
+            'log_folder': infer_log_folder(operation, provenance),
+            'dispatch_error': None,
+        })
 
 
 def start_reader_slurm(settings_file_path):
@@ -230,6 +253,7 @@ def start_reader_slurm(settings_file_path):
     INPUT = json_settings.get('input')
     OUTPUT = json_settings.get('output')
     OPERATION = json_settings.get('operation')
+    history_file = json_settings.get('history_file')
     if not INPUT or not OUTPUT or not OPERATION:
         log.exception("Fields 'input', 'output' and 'operation' are required in the JSON")
         return
@@ -243,7 +267,17 @@ def start_reader_slurm(settings_file_path):
         print(f"Attempting to load plugin for operation {OPERATION}")
         operation_class = reader_plugins[OPERATION]
     operation = operation_class(INPUT, OUTPUT, **EXTRAS)
-    operation.run()
+    if history_file:
+        update_record(history_file, {'status': 'dispatching', 'dispatch_error': None})
+    provenance, job_ids = operation.run()
+    if history_file:
+        update_record(history_file, {
+            'status': 'submitted',
+            'slurm_job_ids': job_ids,
+            'provenance_path': provenance,
+            'log_folder': infer_log_folder(operation, provenance),
+            'dispatch_error': None,
+        })
 
 
 def start_workflow_slurm(settings_file_path):
@@ -257,11 +291,15 @@ def start_workflow_slurm(settings_file_path):
             return
     outputs = {}
     steps = json_settings["steps"]
+    history_file = json_settings.get('history_file')
+    if history_file:
+        update_record(history_file, {'status': 'dispatching', 'dispatch_error': None})
     # operation_outputs = {x['operation']: x['output_name'] for x in steps}
     operation_outputs = {}
 
     for step in steps:
         operation_name = step['operation']
+        step_id = step.get('step_id')
         print("Operation name", operation_name)
         extended_operation_name = operation_name
         if operation_name not in operation_outputs:
@@ -284,6 +322,7 @@ def start_workflow_slurm(settings_file_path):
         input = ""
         output = ""
         extras = step["extras"].copy()
+        original_output = extras.get('output')
         extras.pop("operation")
         inputs_from_other_operations = step['input_bindings']
         print("inputs_from_other_operations", inputs_from_other_operations)
@@ -311,6 +350,19 @@ def start_workflow_slurm(settings_file_path):
         print("input", input)
         print("output", output)
         print("extras", extras)
+        if history_file and step_id:
+            update_workflow_step(
+                history_file,
+                step_id,
+                {
+                    'status': 'dispatching',
+                    'dispatch_error': None,
+                    'resolved_input': input,
+                    'resolved_output': output,
+                    'resolved_extras': extras.copy(),
+                },
+                workflow_updates={'status': 'dispatching'}
+            )
         if issubclass(operation_class, ImageOperation):
             ensure_input_metadata(input, output)
         operation = operation_class(input, output, **extras)
@@ -318,6 +370,28 @@ def start_workflow_slurm(settings_file_path):
         print("================ got provenance:", provenance)
         print("================ got job ids:", prerequisites)
         outputs[extended_operation_name] = {'provenance': provenance, 'prerequisites': prerequisites}
+        if history_file and step_id:
+            resolved_extras = extras.copy()
+            if input:
+                resolved_extras['input'] = input
+            if original_output:
+                resolved_extras['output'] = original_output
+            update_workflow_step(
+                history_file,
+                step_id,
+                {
+                    'status': 'submitted',
+                    'slurm_job_ids': prerequisites,
+                    'provenance_path': provenance,
+                    'log_folder': infer_log_folder(operation, provenance),
+                    'resolved_input': input,
+                    'resolved_output': output,
+                    'resolved_extras': resolved_extras,
+                    'dispatch_error': None,
+                }
+            )
+    if history_file:
+        update_record(history_file, {'status': 'submitted', 'dispatch_error': None})
 
 
 while True:
@@ -333,6 +407,7 @@ while True:
             try:
                 start_reader_slurm(settings_file_path)
             except Exception as e:
+                update_submission_history_for_failure(settings_file_path, str(e))
                 os.rename(settings_file_path, os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
                 print(f"ERROR: {e}")
                 print(traceback.format_exc())
@@ -349,6 +424,7 @@ while True:
             try:
                 start_pipeline_slurm(settings_file_path)
             except Exception as e:
+                update_submission_history_for_failure(settings_file_path, str(e))
                 os.rename(settings_file_path,os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
                 print(traceback.format_exc())
             else:
@@ -364,6 +440,7 @@ while True:
             try:
                 start_workflow_slurm(settings_file_path)
             except Exception as e:
+                update_submission_history_for_failure(settings_file_path, str(e))
                 os.rename(settings_file_path, os.path.join(json_folder, 'err', os.path.basename(settings_file_path)))
                 print(traceback.format_exc())
             else:

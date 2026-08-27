@@ -1,4 +1,5 @@
 import getpass
+import os
 from pathlib import Path
 
 
@@ -7,8 +8,16 @@ def init():
     SETTINGS_FILE_PATH = ""
 
 
-JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/PEACE/JSON']
+# JSON_FOLDERS = ['/h20/CBI/Iana/json', '/h20/Public/PEACE/JSON']
+JSON_FOLDERS = ['/h20/CBI/Iana/json/test']
 TRASH_FOLDER = "/h20/trash"
+
+
+def _env_flag(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
 
 USERNAME = getpass.getuser()
 # USERNAME = 'lab'  # user that runs the pipeline
@@ -57,6 +66,9 @@ CELLFINDER_SOMA_DIAMETER = 10
 CELLFINDER_THRESHOLD = 6
 INFO_FILE_NAME = "dataset_info.json"
 JOBS_FILE_NAME = "jobs.json"
+ENABLE_JOB_HISTORY = True # _env_flag('PEACE_ENABLE_JOB_HISTORY', default=False)
+USE_SACCT_FOR_HISTORY = True # _env_flag('PEACE_USE_SACCT_FOR_HISTORY', default=True)
+JOB_HISTORY_DIR = os.environ.get('PEACE_JOB_HISTORY_DIR', os.path.join(JSON_FOLDERS[0], 'history'))
 CELLFINDER_OUT_FOLDER_NAME = "output_full"
 DEEPBLINK_OUT_FOLDER_NAME = "output_deepblink"
 ATLAS_NAME_FORMAT = 'allen_mouse_{}um'
@@ -112,4 +124,3 @@ PREPROCESSING_METHODS = [
 #   analyze_cells_imaris,
 #   analyze_cells_cellfinder,
 #   visualize_cells
-
