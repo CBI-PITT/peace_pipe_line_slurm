@@ -1,6 +1,6 @@
+import json
 import os
 import sys
-from glob import glob
 from pathlib import Path
 
 import tifffile
@@ -13,6 +13,7 @@ project_root = operations_folder.parent
 sys.path.append(str(project_root))
 
 from analysis import settings
+from utils.z_range import resolve_tiff_path
 
 os.umask(settings.UMASK)
 print(f"Running on {os.uname().nodename}")
@@ -24,18 +25,28 @@ resolution_level = int(sys.argv[3])
 channel = int(sys.argv[4])
 z = int(sys.argv[5])
 
-# input_file = os.path.join(
-#     INPUT_DIR,
-#     f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.tif"
-# )
 
-files = sorted(glob(os.path.join(INPUT_DIR, "*.tif")))
-input_file = files[z]
+def resolve_input_file():
+    metadata = None
+    metadata_path = os.path.join(INPUT_DIR, f'.{settings.INFO_FILE_NAME}')
+    if os.path.exists(metadata_path):
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+    return resolve_tiff_path(
+        INPUT_DIR,
+        metadata,
+        resolution_level,
+        channel,
+        z,
+    )
+
+
+input_file = resolve_input_file()
 print("Input file:", input_file)
 
 output_file = os.path.join(
     OUTPUT_DIR,
-    f"r{str(resolution_level).zfill(2)}_t00_c{str(channel).zfill(2)}_z{str(z).zfill(4)}.npy"
+    f"r{resolution_level:02d}_t00_c{channel:02d}_z{z:04d}.npy"
 )
 
 if not os.path.exists(output_file):

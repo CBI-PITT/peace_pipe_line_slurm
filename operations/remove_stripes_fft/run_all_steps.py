@@ -1,7 +1,6 @@
+from collections import defaultdict
 import json
 import os
-import re
-import subprocess
 import sys
 import time
 from glob import glob
@@ -17,14 +16,14 @@ project_root = operations_folder.parent
 sys.path.append(str(project_root))
 
 from analysis import settings
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import submit_slurm_indices
+from utils.z_range import existing_z_indices, normalize_z_range
 
 os.umask(settings.UMASK)
 print(f"Running on {os.uname().nodename}")
 
 
 def submit_stripes_removal_job_array():
-    z_layers = metadata['shape'][-3]
     path_to_task = os.path.join(jobs_folder, f"remove_stripes_fft_rl{resolution_level}_c{channel}.sh")
     main_script = os.path.abspath(__file__)
     slurm_script = os.path.join(os.path.dirname(main_script), "do_stripes_removal.py")
@@ -55,33 +54,15 @@ def submit_stripes_removal_job_array():
         f.write(str(first_harmonic))
         f.write('\n')
 
-    already_done = glob(os.path.join(save_folder, "*.tif"))
-    if len(already_done):
-        print("Partially processed")
-        print("Processed", len(already_done), "of", z_layers)
-        files = os.listdir(save_folder)
-        pattern = "_z(\d+)\.tif"
-        numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
-        numbers = set(map(int, numbers))
-        job_ids = split_slurm_array(
-            path_to_task,
-            z_layers,
-            numbers,
-            partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-            cores=1,
-            memory=32,
-            priority=priority,
-        )
-    else:
-        job_ids = submit_slurm_array(
-            path_to_task,
-            z_layers,
-            partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-            cores=1,
-            memory=32,
-            priority=priority,
-        )
-    return job_ids
+    return submit_slurm_indices(
+        path_to_task,
+        selected_indices,
+        existing_outputs=existing_z_indices(save_folder),
+        partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+        cores=1,
+        memory=32,
+        priority=priority,
+    )
 
 
 def calculate_first_harmonic_one_img(image, stripes_direction='v'):
@@ -95,7 +76,7 @@ def calculate_first_harmonic_one_img(image, stripes_direction='v'):
     elif stripes_direction == "v":
         axis = 0
     else:
-        raise NotImplemented("Can only automatically remove vertical or horizontal stripes")
+        raise ValueError("Can only automatically remove vertical or horizontal stripes")
     quant_5 = np.quantile(image.astype(np.float32), 0.05, axis=axis)
     r_fft_transf = np.fft.rfft(quant_5)/quant_5.shape[0]
     first_harmonic = np.argmax(abs(r_fft_transf)[5:]) + 5
@@ -136,6 +117,8 @@ def calculate_first_harmonic_from_majority():
     print("Computing 1st harmonic from the data")
     harmonics = defaultdict(int)
     imgs = sorted(glob(os.path.join(input_dir, '*.tif')))
+    if not imgs:
+        raise FileNotFoundError(f"No TIFF files found in {input_dir}")
     for z, img_name in enumerate(imgs):
         img = tifffile.imread(img_name)
         first_harmonic = calculate_first_harmonic_one_img(img, stripes_direction=stripe_direction)
@@ -147,6 +130,20 @@ def calculate_first_harmonic_from_majority():
     return int(most_frequent)
 
 
+def record_first_harmonic(provenance_path, first_harmonic, method, scope):
+    with open(provenance_path, 'r') as f:
+        provenance = json.load(f)
+    provenance.setdefault('process', {})['results'] = {
+        'first_harmonic': first_harmonic,
+        'first_harmonic_method': method,
+        'first_harmonic_scope': scope,
+    }
+    temporary_path = f"{provenance_path}.tmp"
+    with open(temporary_path, 'w') as f:
+        json.dump(provenance, f)
+    os.replace(temporary_path, provenance_path)
+
+
 input_dir = sys.argv[1]
 save_folder = sys.argv[2]
 resolution_level = int(sys.argv[3])
@@ -155,12 +152,21 @@ username = sys.argv[5]
 priority = sys.argv[6]
 stripe_direction = sys.argv[7]
 composites_dir = sys.argv[8]
+provenance_path = sys.argv[9]
+requested_z_start = int(sys.argv[10])
+requested_z_end = int(sys.argv[11])
 
 metadata = json.load(open(os.path.join(input_dir, f'.{settings.INFO_FILE_NAME}'), 'r'))
+selection = normalize_z_range(metadata, requested_z_start, requested_z_end)
+selected_indices = list(range(selection['start'], selection['end']))
 output_folder_sequence = Path(save_folder).parent
 jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+if not selection['is_full']:
+    jobs_folder += f"_z{selection['start']}-{selection['end']}"
 
 first_harmonic = None
+first_harmonic_method = None
+first_harmonic_scope = None
 
 if composites_dir:  # only for RSCM
     base_input_dir = metadata['base_input_dir']
@@ -172,17 +178,34 @@ if composites_dir:  # only for RSCM
         from imaris_ims_file_reader import ims
         ims_file = ims(ims_file_path)
         first_harmonic = calculate_first_harmonic_from_stitching(ims_file, composites_dir)
+        if first_harmonic:
+            first_harmonic_method = 'stitching_metadata'
+            first_harmonic_scope = 'stitching_metadata'
 
 if not first_harmonic:
     first_harmonic = calculate_first_harmonic_from_majority()
+    first_harmonic_method = 'image_majority'
+    first_harmonic_scope = 'all_available_input_z'
 
 print("first harmonic:", first_harmonic)
+record_first_harmonic(
+    provenance_path,
+    first_harmonic,
+    first_harmonic_method,
+    first_harmonic_scope,
+)
 
-submit_stripes_removal_job_array()
+job_ids = submit_stripes_removal_job_array()
+missing = set(selected_indices) - existing_z_indices(save_folder)
+if missing and not job_ids:
+    raise RuntimeError(
+        f"No SLURM jobs were submitted for missing z indices: {sorted(missing)[:10]}"
+    )
 
-finished_planes = len(glob(os.path.join(save_folder, '*.tif')))
-z_layers = metadata['shape'][-3]
-while finished_planes < z_layers:
-    print("finished", finished_planes, "of", z_layers)
+while True:
+    completed = existing_z_indices(save_folder)
+    missing = set(selected_indices) - completed
+    if not missing:
+        break
+    print("finished", len(selected_indices) - len(missing), "of", len(selected_indices))
     time.sleep(60)
-    finished_planes = len(glob(os.path.join(save_folder, '*.tif')))

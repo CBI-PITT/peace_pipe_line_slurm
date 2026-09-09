@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 
 from analysis.settings import (
@@ -19,14 +20,14 @@ def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8,
         nice = PRIORITY_TO_NICE_MAP_COMPUTE[priority]
         nice = int(nice * (cores / 24.))
 
-    command = [
-        'sbatch',
-        '-p', partition,
-        '--gres=gpu:1' if needs_gpu and partition in GPU_ENABLED_PARTITIONS else ''
+    command = ['sbatch', '-p', partition]
+    if needs_gpu and partition in GPU_ENABLED_PARTITIONS:
+        command.append('--gres=gpu:1')
+    command.extend([
         f'--mem={memory}Gb',
         f'-n{cores}',
         f'--nice={nice}',
-    ]
+    ])
     if extra_args and type(extra_args) is dict:
         for k, v in extra_args.items():
             command.append(f"{k}={v}")
@@ -50,11 +51,14 @@ def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU,
         'sbatch',
         f'--array=0-{number_of_tasks - 1}',
         '-p', partition,
-        '--gres=gpu:1' if needs_gpu and partition in GPU_ENABLED_PARTITIONS else ''
+    ]
+    if needs_gpu and partition in GPU_ENABLED_PARTITIONS:
+        command.append('--gres=gpu:1')
+    command.extend([
         f'--mem={memory}Gb',
         f'-n{cores}',
-        f'--nice={nice}'
-    ]
+        f'--nice={nice}',
+    ])
     if extra_args and type(extra_args) is dict:
         for k, v in extra_args.items():
             command.append(f"{k}={v}")
@@ -78,11 +82,14 @@ def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM
         'sbatch',
         f'--array={array_start}-{array_end}',
         '-p', partition,
-        '--gres=gpu:1' if needs_gpu and partition in GPU_ENABLED_PARTITIONS else ''
+    ]
+    if needs_gpu and partition in GPU_ENABLED_PARTITIONS:
+        command.append('--gres=gpu:1')
+    command.extend([
         f'--mem={memory}Gb',
         f'-n{cores}',
-        f'--nice={nice}'
-    ]
+        f'--nice={nice}',
+    ])
     if extra_args and type(extra_args) is dict:
         for k, v in extra_args.items():
             command.append(f"{k}={v}")
@@ -95,29 +102,39 @@ def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM
         return None
 
 
-def split_range_in_subranges(n, existing_outputs):
-    existing_set = set(existing_outputs)
-    subranges = []
-    start = None
+def split_indices_in_subranges(indices):
+    indices = sorted(set(indices))
+    if not indices:
+        return []
 
-    for i in range(n):
-    # for i in range(n + 1):
-        if i not in existing_set:
-            if start is None:
-                start = i
-        else:
-            if start is not None:
-                subranges.append((start, i - 1))
-                start = None
-    if start is not None:
-        subranges.append((start, n))
+    subranges = []
+    start = indices[0]
+    previous = indices[0]
+    for index in indices[1:]:
+        if index != previous + 1:
+            subranges.append((start, previous))
+            start = index
+        previous = index
+    subranges.append((start, previous))
     return subranges
 
 
-def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
-    subranges = split_range_in_subranges(number_of_tasks, existing_outputs)
+def submit_slurm_indices(
+    job_path,
+    task_indices,
+    existing_outputs=None,
+    partition=SLURM_PARTITION_CPU,
+    cores=1,
+    memory=8,
+    needs_gpu=False,
+    priority=0,
+    extra_args=None,
+):
+    completed = set(existing_outputs or [])
+    missing = set(task_indices) - completed
     job_ids = []
-    for start, end in subranges:
+
+    for start, end in split_indices_in_subranges(missing):
         job_id = submit_partial_slurm_array(
             job_path,
             start,
@@ -127,11 +144,34 @@ def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLU
             memory=memory,
             needs_gpu=needs_gpu,
             priority=priority,
-            extra_args=extra_args
+            extra_args=extra_args,
         )
-        if job_id:
-            job_ids.append(job_id)
+        if not job_id:
+            raise RuntimeError(
+                f"Unable to submit SLURM array range {start}-{end} for {job_path}"
+            )
+        job_ids.append(job_id)
     return job_ids
+
+
+def split_range_in_subranges(n, existing_outputs):
+    existing_set = set(existing_outputs)
+    missing = [index for index in range(n) if index not in existing_set]
+    return split_indices_in_subranges(missing)
+
+
+def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
+    return submit_slurm_indices(
+        job_path,
+        range(number_of_tasks),
+        existing_outputs=existing_outputs,
+        partition=partition,
+        cores=cores,
+        memory=memory,
+        needs_gpu=needs_gpu,
+        priority=priority,
+        extra_args=extra_args,
+    )
 
 
 def parse_slurm_errors(logs_folder):

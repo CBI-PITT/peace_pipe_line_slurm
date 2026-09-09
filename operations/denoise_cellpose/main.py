@@ -1,16 +1,11 @@
 import json
 import os
-import re
-import subprocess
-import time
-from glob import glob
-
-import numpy as np
 
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
 from utils.slurm import submit_slurm_job
+from utils.z_range import normalize_z_range, z_range_provenance, z_range_suffix
 
 
 class denoise_cellpose(ImageOperation):
@@ -27,6 +22,14 @@ class denoise_cellpose(ImageOperation):
         self.priority = kwargs.get('priority', '2')
         self.model = kwargs.get('model', 'denoise_cyto3')
         self.diameter = int(kwargs.get('diameter', 100))
+        self.z_selection = normalize_z_range(
+            self.metadata,
+            kwargs.get('z_start', 0),
+            kwargs.get('z_end', -1)
+        )
+        self.z_start = self.z_selection['start']
+        self.z_end = self.z_selection['end']
+        self.z_suffix = z_range_suffix(self.z_selection)
 
         output_operation_folder = os.path.join(self.output, self.name)
         output_folder_sequence = os.path.join(
@@ -35,12 +38,16 @@ class denoise_cellpose(ImageOperation):
             f"channel_{self.channel}",
             f"{self.sequence}"
         )
-        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+        self.jobs_folder = os.path.join(output_folder_sequence, f"slurm_jobs{self.z_suffix}")
+        save_folder_name = f"cellpose_model_{self.model}_diameter_{self.diameter}"
         self.save_folder = os.path.join(
             output_folder_sequence,
-            f"cellpose_model_{self.model}_diameter_{self.diameter}"
+            f"{save_folder_name}{self.z_suffix}"
         )
-        self.save_folder_uint = self.save_folder + "_uint"
+        self.save_folder_uint = os.path.join(
+            output_folder_sequence,
+            f"{save_folder_name}_uint{self.z_suffix}"
+        )
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Denoise prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
@@ -73,7 +80,11 @@ class denoise_cellpose(ImageOperation):
             "process": {
                 "parameters": {
                     "model": self.model,
-                    "diameter": self.diameter
+                    "diameter": self.diameter,
+                    "z_start": self.z_selection['requested_start'],
+                    "z_end": self.z_selection['requested_end'],
+                    "raw_normalization_scope": "all_available_input_z",
+                    "denoised_normalization_scope": "selected_output_z"
                 }
             },
             "source": source,  # input provenance file
@@ -84,7 +95,8 @@ class denoise_cellpose(ImageOperation):
             "orientation": self.metadata['orientation'],
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": self.sequence
+            "sequence": self.sequence,
+            "processed_z_range": z_range_provenance(self.z_selection)
         }
         provenance_file_path = os.path.join(self.save_folder_uint, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
@@ -117,11 +129,15 @@ class denoise_cellpose(ImageOperation):
             f.write(' ')
             f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
             f.write(' ')
+            f.write(self.save_folder_uint if ' ' not in self.save_folder_uint else f'"{self.save_folder_uint}"')
+            f.write(' ')
             f.write(
                 f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.model} {str(self.diameter)}'
             )
             f.write(' ')
             f.write(f'{experiment}')
+            f.write(' ')
+            f.write(f'{self.z_start} {self.z_end}')
             f.write('\n')
 
         extra_args = {}

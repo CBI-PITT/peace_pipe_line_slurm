@@ -1,16 +1,11 @@
 import json
 import os
-import re
-import subprocess
-import time
-from glob import glob
-
-from imaris_ims_file_reader import ims
 
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
 from utils.slurm import submit_slurm_job
+from utils.z_range import normalize_z_range, z_range_provenance, z_range_suffix
 
 
 class remove_stripes_fft(ImageOperation):
@@ -24,7 +19,15 @@ class remove_stripes_fft(ImageOperation):
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.stripe_direction = kwargs.get('stripe_direction', 'v')
-        self.composites_dir = kwargs.get('composites_dir')
+        self.composites_dir = kwargs.get('composites_dir') or ''
+        self.z_selection = normalize_z_range(
+            self.metadata,
+            kwargs.get('z_start', 0),
+            kwargs.get('z_end', -1)
+        )
+        self.z_start = self.z_selection['start']
+        self.z_end = self.z_selection['end']
+        self.z_suffix = z_range_suffix(self.z_selection)
 
         output_operation_folder = os.path.join(self.output, self.name)
         output_folder_sequence = os.path.join(
@@ -33,8 +36,8 @@ class remove_stripes_fft(ImageOperation):
             f"channel_{self.channel}",
             f"{self.sequence}"
         )
-        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
-        self.save_folder = os.path.join(output_folder_sequence, 'fft_corrected')
+        self.jobs_folder = os.path.join(output_folder_sequence, f"slurm_jobs{self.z_suffix}")
+        self.save_folder = os.path.join(output_folder_sequence, f'fft_corrected{self.z_suffix}')
         self.prerequisites = kwargs.get('prerequisites', [])
         print("FFT stripes removal prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
@@ -63,7 +66,10 @@ class remove_stripes_fft(ImageOperation):
             },
             "process": {
                 "parameters": {
-                    "stripe_direction": self.stripe_direction
+                    "stripe_direction": self.stripe_direction,
+                    "composites_dir": self.composites_dir,
+                    "z_start": self.z_selection['requested_start'],
+                    "z_end": self.z_selection['requested_end']
                 }
             },
             "source": os.path.join(self.input, f'.{settings.INFO_FILE_NAME}'),  # input provenance file
@@ -74,7 +80,8 @@ class remove_stripes_fft(ImageOperation):
             "orientation": self.metadata['orientation'],
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": self.sequence
+            "sequence": self.sequence,
+            "processed_z_range": z_range_provenance(self.z_selection)
         }
         provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
@@ -103,7 +110,22 @@ class remove_stripes_fft(ImageOperation):
             f.write(
                 f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.stripe_direction}')
             f.write(' ')
-            f.write(self.composites_dir if ' ' not in self.composites_dir else f'"{self.composites_dir}"')
+            if self.composites_dir:
+                f.write(self.composites_dir if ' ' not in self.composites_dir else f'"{self.composites_dir}"')
+            else:
+                f.write('""')
+            f.write(' ')
+            provenance_file_path = os.path.join(
+                self.save_folder,
+                f'.{settings.INFO_FILE_NAME}'
+            )
+            f.write(
+                provenance_file_path
+                if ' ' not in provenance_file_path
+                else f'"{provenance_file_path}"'
+            )
+            f.write(' ')
+            f.write(f'{self.z_start} {self.z_end}')
             f.write('\n')
 
         extra_args = {}
