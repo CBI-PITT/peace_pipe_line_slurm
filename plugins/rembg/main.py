@@ -1,15 +1,11 @@
 import json
 import os
-import re
-import subprocess
-from glob import glob
-
-from imaris_ims_file_reader import ims
 
 from operations.base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import submit_slurm_indices
+from utils.z_range import existing_z_indices, normalize_z_range, z_range_provenance, z_range_suffix
 
 
 class rembg(ImageOperation):
@@ -20,9 +16,20 @@ class rembg(ImageOperation):
         self.resolution_level = self.metadata['resolution_level']
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
+        self.z_selection = normalize_z_range(
+            self.metadata,
+            kwargs.get('z_start', 0),
+            kwargs.get('z_end', -1)
+        )
+        self.z_start = self.z_selection['start']
+        self.z_end = self.z_selection['end']
+        self.z_suffix = z_range_suffix(self.z_selection)
 
         self.output_operation_folder = os.path.join(self.output, 'rembg')
-        self.jobs_folder = os.path.join(self.output_operation_folder, "slurm_jobs")
+        self.jobs_folder = os.path.join(
+            self.output_operation_folder,
+            f"slurm_jobs{self.z_suffix}"
+        )
         if self.metadata.get('sequence'):
             previous_operations = self.metadata['sequence'].split(',')
             previous_operation = f"_{previous_operations[-1]}" if len(previous_operations) > 1 else ""
@@ -32,7 +39,7 @@ class rembg(ImageOperation):
             self.output_operation_folder,
             f'resolution_level_{self.resolution_level}',
             f'channel_{self.channel}',
-            f"removed_background{previous_operation}"
+            f"removed_background{previous_operation}{self.z_suffix}"
         )
         self.prerequisites = kwargs.get('prerequisites', [])
         print("rembg prerequisites", self.prerequisites)
@@ -65,6 +72,8 @@ class rembg(ImageOperation):
             },
             "process": {
                 "parameters": {
+                    "z_start": self.z_selection['requested_start'],
+                    "z_end": self.z_selection['requested_end']
                 }
             },
             "source": source,  # input provenance file
@@ -75,7 +84,8 @@ class rembg(ImageOperation):
             "orientation": source_provenance['orientation'],
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": sequence
+            "sequence": sequence,
+            "processed_z_range": z_range_provenance(self.z_selection)
         }
         provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
@@ -83,7 +93,6 @@ class rembg(ImageOperation):
         return provenance_file_path
 
     def run_rembg(self):
-        z_layers = self.metadata['shape'][-3]
         path_to_task = os.path.join(self.jobs_folder, f"rembg_rl{self.resolution_level}_c{self.channel}.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "do_rembg.py")
@@ -115,33 +124,13 @@ class rembg(ImageOperation):
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
             extra_args['--kill-on-invalid-dep'] = 'yes'
 
-        already_done = glob(os.path.join(self.save_folder, "*.tif"))
-        if len(already_done):
-            print("Partially processed")
-            print("Processed", len(already_done), "of", z_layers)
-            files = os.listdir(self.save_folder)
-            pattern = "_z(\d+)\.tif"
-            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
-            numbers = set(map(int, numbers))
-
-            job_ids = split_slurm_array(
-                path_to_task,
-                z_layers,
-                numbers,
-                partition=settings.SLURM_PARTITION_CPU,
-                cores=12,
-                memory=32,
-                priority=self.priority,
-                extra_args=extra_args
-            )
-        else:
-            job_ids = submit_slurm_array(
-                path_to_task,
-                z_layers,
-                partition=settings.SLURM_PARTITION_CPU,
-                cores=12,
-                memory=32,
-                priority=self.priority,
-                extra_args=extra_args
-            )
-        return job_ids
+        return submit_slurm_indices(
+            path_to_task,
+            range(self.z_start, self.z_end),
+            existing_outputs=existing_z_indices(self.save_folder),
+            partition=settings.SLURM_PARTITION_CPU,
+            cores=12,
+            memory=32,
+            priority=self.priority,
+            extra_args=extra_args
+        )

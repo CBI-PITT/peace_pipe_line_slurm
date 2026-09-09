@@ -1,12 +1,11 @@
 import json
 import os
-import re
-from glob import glob
 
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import submit_slurm_indices
+from utils.z_range import existing_z_indices, normalize_z_range, z_range_provenance, z_range_suffix
 
 
 class adaptive_histogram_equalization(ImageOperation):
@@ -20,6 +19,14 @@ class adaptive_histogram_equalization(ImageOperation):
         self.user = kwargs.get('user', get_user(self.input))
         self.priority = kwargs.get('priority', '2')
         self.clip_limit = kwargs.get('clip_limit', 0.03)
+        self.z_selection = normalize_z_range(
+            self.metadata,
+            kwargs.get('z_start', 0),
+            kwargs.get('z_end', -1)
+        )
+        self.z_start = self.z_selection['start']
+        self.z_end = self.z_selection['end']
+        self.z_suffix = z_range_suffix(self.z_selection)
 
         output_operation_folder = os.path.join(self.output, self.name)
         output_folder_sequence = os.path.join(
@@ -28,11 +35,11 @@ class adaptive_histogram_equalization(ImageOperation):
             f"channel_{self.channel}",
             f"{self.sequence}"
         )
-        self.jobs_folder = os.path.join(output_folder_sequence, "slurm_jobs")
+        self.jobs_folder = os.path.join(output_folder_sequence, f"slurm_jobs{self.z_suffix}")
         self.extracted_tiffs_folder = os.path.join(self.output, f'resolution_level_{self.resolution_level}', f'channel_{self.channel}')
         self.save_folder = os.path.join(
             output_folder_sequence,
-            'adaptive_histogram_equalized'
+            f'adaptive_histogram_equalized{self.z_suffix}'
         )
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Adaptive histogram equalization prerequisites", self.prerequisites)
@@ -63,7 +70,9 @@ class adaptive_histogram_equalization(ImageOperation):
             },
             "process": {
                 "parameters": {
-                    "clip_limit": self.clip_limit
+                    "clip_limit": self.clip_limit,
+                    "z_start": self.z_selection['requested_start'],
+                    "z_end": self.z_selection['requested_end']
                 }
             },
             "source": source,
@@ -74,7 +83,8 @@ class adaptive_histogram_equalization(ImageOperation):
             "orientation": self.metadata['orientation'],
             "base_output_dir": base_output_dir,
             "base_input_dir": base_input_dir,
-            "sequence": self.sequence
+            "sequence": self.sequence,
+            "processed_z_range": z_range_provenance(self.z_selection)
         }
         provenance_file_path = os.path.join(self.save_folder, f'.{settings.INFO_FILE_NAME}')
         with open(provenance_file_path, "w") as f:
@@ -82,7 +92,6 @@ class adaptive_histogram_equalization(ImageOperation):
         return provenance_file_path
 
     def do_adaptive_histogram_equalization(self):
-        z_layers = self.metadata['shape'][-3]
         path_to_task = os.path.join(self.jobs_folder, f"adaptive_histogram_equalization_rl{self.resolution_level}_c{self.channel}.sh")
         main_script = os.path.abspath(__file__)
         slurm_script = os.path.join(os.path.dirname(main_script), "do_adaptive_histogram_equalization.py")
@@ -116,32 +125,13 @@ class adaptive_histogram_equalization(ImageOperation):
             extra_args['--depend'] = f'afterok:{":".join(list(map(str, self.prerequisites)))}'
             extra_args['--kill-on-invalid-dep'] = 'yes'
 
-        already_done = glob(os.path.join(self.save_folder, "*.tif"))
-        if len(already_done):
-            print("Partially processed")
-            print("Processed", len(already_done), "of", z_layers)
-            files = os.listdir(self.save_folder)
-            pattern = "_z(\\d+)\\.tif"
-            numbers = [re.findall(pattern, x)[0] for x in files if x.endswith('.tif')]
-            numbers = set(map(int, numbers))
-            job_ids = split_slurm_array(
-                path_to_task,
-                z_layers,
-                numbers,
-                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                cores=1,
-                memory=32,
-                priority=self.priority,
-                extra_args=extra_args
-            )
-        else:
-            job_ids = submit_slurm_array(
-                path_to_task,
-                z_layers,
-                partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
-                cores=1,
-                memory=32,
-                priority=self.priority,
-                extra_args=extra_args
-            )
-        return job_ids
+        return submit_slurm_indices(
+            path_to_task,
+            range(self.z_start, self.z_end),
+            existing_outputs=existing_z_indices(self.save_folder),
+            partition=','.join([settings.SLURM_PARTITION_CPU, settings.SLURM_PARTITION_HIGH_RAM]),
+            cores=1,
+            memory=32,
+            priority=self.priority,
+            extra_args=extra_args
+        )

@@ -36,6 +36,9 @@ output_file = os.path.join(
 )
 
 img_dn = tifffile.imread(input_file)
-img_dn = (img_dn - denoised_stack_min) / (denoised_stack_max - denoised_stack_min)
+if denoised_stack_max == denoised_stack_min:
+    img_dn = np.zeros_like(img_dn, dtype=np.float32)
+else:
+    img_dn = (img_dn - denoised_stack_min) / (denoised_stack_max - denoised_stack_min)
 img_dn = img_dn * 65535
 tifffile.imwrite(output_file, img_dn.astype('uint16'))

@@ -121,7 +121,7 @@ print("SAVE_AS_FLOAT", SAVE_AS_FLOAT)
 with open(MANIFEST_PATH, 'r') as f:
     manifest = json.load(f)
 
-task_info = manifest[TASK_ID]
+task_info = manifest[str(TASK_ID)]
 input1_path = task_info['input1']
 input2_path = task_info['input2']
 input2_scalar = task_info['input2_scalar']
