@@ -40,7 +40,7 @@ def launch_job_array():
         f.write(f"#SBATCH -o {jobs_folder}/spotiflow_%A_%a.out")
         f.write('\n')
         f.write('\n')
-        f.write("source /h20/home/lab/miniconda3/bin/activate spotiflow")
+        f.write("source /h20/home/lab/miniconda3/bin/activate pytorch_deneb_cu124_py310")
         f.write('\n')
         f.write(f'python {slurm_script}')
         f.write(' ')
@@ -65,7 +65,8 @@ def launch_job_array():
             path_to_task,
             z_layers,
             numbers,
-            partition=settings.SLURM_PARTITION_EXTREME,
+            partition=settings.SLURM_PARTITION_GPU,
+            # partition=','.join([settings.SLURM_PARTITION_GPU, settings.SLURM_PARTITION_EXTREME]),
             needs_gpu=True,
             cores=2,
             memory=32,
@@ -75,7 +76,8 @@ def launch_job_array():
         submit_slurm_array(
             path_to_task,
             z_layers,
-            partition=settings.SLURM_PARTITION_EXTREME,
+            partition=settings.SLURM_PARTITION_GPU,
+            # partition=','.join([settings.SLURM_PARTITION_GPU, settings.SLURM_PARTITION_EXTREME]),
             needs_gpu=True,
             cores=2,
             memory=32,
