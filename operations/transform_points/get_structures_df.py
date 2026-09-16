@@ -56,12 +56,30 @@ def transform_points_downsampled_to_atlas_space(
     return transformed_points
 
 
+def resolve_full_resolution(options):
+    # operation provenance writers propagate resolution/shape but not
+    # full_resolution, so walk the source provenance chain to find it
+    if options.get('full_resolution'):
+        return options['full_resolution']
+    source_path = options.get('source')
+    seen = set()
+    while source_path and source_path not in seen and os.path.exists(source_path):
+        seen.add(source_path)
+        with open(source_path, 'r') as f:
+            source_data = json.load(f)
+        if source_data.get('full_resolution'):
+            return source_data['full_resolution']
+        source_path = source_data.get('source')
+    return options['resolution']
+
+
 cells_path = sys.argv[1]
 registration_path = sys.argv[2]
 results_folder = sys.argv[3]
 metadata = sys.argv[4]
 
 options = json.load(open(metadata, 'r'))
+full_resolution = resolve_full_resolution(options)
 
 deformation_field_paths = [
     os.path.join(registration_path, 'deformation_field_0.tiff'),
@@ -168,17 +186,13 @@ for ind in range(all_detected_spots_transformed.shape[0]):
             uuid.uuid4(),
             0,  # time_point
             signal_channel,  # channel
-            all_detected_spots[ind, 0] * options['resolution'][0],
-            # 'z_raw'  # TODO take from original imaris points?
-            all_detected_spots[ind, 1] * options['resolution'][1],  # 'y_raw',
-            all_detected_spots[ind, 2] * options['resolution'][2],  # 'x_raw',
+            all_detected_spots[ind, 0] * options['resolution'][0],  # 'z_raw'
+            all_detected_spots[ind, 1] * options['resolution'][1],  # 'y_raw'
+            all_detected_spots[ind, 2] * options['resolution'][2],  # 'x_raw'
             'um',  # 'raw_coord_units'
-            int(round(all_detected_spots[ind, 0] * options['resolution'][0] / options['full_resolution'][0])),
-            # 'z_raw_px'  # TODO take from original imaris points?
-            int(round(all_detected_spots[ind, 1] * options['resolution'][1] / options['full_resolution'][1])),
-            # 'y_raw_px'
-            int(round(all_detected_spots[ind, 2] * options['resolution'][2] / options['full_resolution'][2])),
-            # 'x_raw_px'
+            int(round(all_detected_spots[ind, 0] * options['resolution'][0] / full_resolution[0])),  # 'z_raw_px'
+            int(round(all_detected_spots[ind, 1] * options['resolution'][1] / full_resolution[1])),  # 'y_raw_px'
+            int(round(all_detected_spots[ind, 2] * options['resolution'][2] / full_resolution[2])),  # 'x_raw_px'
             1,  # 'is_cell',
             '',  # 'type',
             atlas.atlas_name,  # 'atlas_name',
@@ -255,3 +269,21 @@ df.to_csv(output_csv_file_path, index=False)
 tifffile.imwrite(output_binary_tiff_file_path, binary_img)
 print('DataFrame saved as', output_csv_file_path)
 print('Binary TIFF saved as', output_binary_tiff_file_path)
+
+# Aggregate points by atlas region: one row per unique region with a cell count
+region_counts_df = (
+    df[df["atlas_structure_acronym"] != ""]
+    .groupby(
+        ["atlas_structure_name", "atlas_structure_acronym", "atlas_structure_number"],
+        as_index=False,
+    )
+    .size()
+    .rename(columns={"size": "cell_count"})
+    .sort_values("cell_count", ascending=False)
+)
+output_counts_csv_file_path = os.path.join(
+    results_folder,
+    f"{os.path.basename(cells_path.replace('.csv', ''))}_region_counts.csv"
+)
+region_counts_df.to_csv(output_counts_csv_file_path, index=False)
+print('Region counts CSV saved as', output_counts_csv_file_path)

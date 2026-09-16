@@ -134,6 +134,9 @@ def bootstrap_tiff_series_metadata(input_path, output_path=None):
 
 
 def ensure_input_metadata(input_path, output_path=None):
+    if not input_path:
+        # CSV-input operations derive their paths from the cells CSV provenance
+        return None
     info_file_path = os.path.join(input_path, f'.{settings.INFO_FILE_NAME}')
     if os.path.exists(info_file_path):
         return info_file_path
