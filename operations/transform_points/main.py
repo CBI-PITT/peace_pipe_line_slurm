@@ -37,6 +37,7 @@ class transform_points(ImageOperation):
         self.results_folder = output_folder_sequence
         self.out_csv_path = os.path.join(self.results_folder, f"{os.path.basename(self.cells_path.replace('.csv', ''))}_for_dashboard.csv")
         self.out_binary_tiff_path = os.path.join(self.results_folder, f"{os.path.basename(self.cells_path.replace('.csv', ''))}_for_dashboard_binary.tiff")
+        self.out_counts_csv_path = os.path.join(self.results_folder, f"{os.path.basename(self.cells_path.replace('.csv', ''))}_region_counts.csv")
         self.prerequisites = kwargs.get('prerequisites', [])
         print("Prerequisites", self.prerequisites)
         os.umask(settings.UMASK)
@@ -48,10 +49,10 @@ class transform_points(ImageOperation):
     def run(self):
         provenance_file_path = self.create_provenance()
         job_ids = []
-        if not os.path.exists(self.out_csv_path) or not os.path.exists(self.out_binary_tiff_path):
+        if not os.path.exists(self.out_csv_path) or not os.path.exists(self.out_binary_tiff_path) or not os.path.exists(self.out_counts_csv_path):
             job_ids = self.get_df()
         else:
-            print("Output CSV file and binary TIFF already exist")
+            print("Output CSV file, binary TIFF, and region counts CSV already exist")
         return provenance_file_path, job_ids
 
     def create_provenance(self):
