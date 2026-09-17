@@ -20,3 +20,4 @@ from .denoise_cellpose import denoise_cellpose
 from .remove_stripes_fft import remove_stripes_fft
 from .spotiflow import spotiflow
 from .nearest_neighbor import nearest_neighbor
+from .mean_intensity import mean_intensity
