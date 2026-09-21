@@ -221,6 +221,21 @@ def start_pipeline_slurm(settings_file_path):
     if type(EXTRAS) != dict:
         log.exception("Field 'extras' needs to be a mapping/dictionary")
         return
+    if not EXTRAS or 'user' not in EXTRAS:
+        raise PermissionError("Unknown user")
+    USER = EXTRAS['user']
+    # CSV-input operations submit empty input/output and derive their paths
+    # from the cells CSV provenance; validate the CSV path instead
+    input_check_path = INPUT
+    output_check_path = OUTPUT
+    if not input_check_path:
+        input_check_path = EXTRAS.get('cells_path') or EXTRAS.get('cell_candidates_path') or ''
+    if not output_check_path:
+        output_check_path = input_check_path
+    if not input_check_path.startswith(f"{settings.FS_ROOT}/{USER}"):
+        raise PermissionError(f"Input location not allowed: {input_check_path}")
+    if not output_check_path.startswith(f"{settings.FS_ROOT}/{USER}"):
+        raise PermissionError(f"Output location not allowed: {output_check_path}")
     try:
         operation_class = getattr(sys.modules[__name__], OPERATION)
     except AttributeError:

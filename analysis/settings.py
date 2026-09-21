@@ -58,6 +58,8 @@ PRIORITY_TO_NICE_MAP_COMPUTE = {
 
 TIFF_TILE_SIZE = (512, 512)
 
+FS_ROOT = "/h20/Public"  # root of the filesystem area users may process files from
+
 # UMASK = 0o002  # system mask for setting file and folder permissions (rw-rw-r--)
 UMASK = 0o006  # system mask for setting file and folder permissions (rw-rw----)
 
