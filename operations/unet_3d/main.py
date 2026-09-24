@@ -9,7 +9,7 @@ import numpy as np
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_array
+from utils.slurm import shell_arg, submit_slurm_array
 
 
 CHUNK_SIZE = settings.DEEPBLINK_CHUNK_SIZE
@@ -136,19 +136,19 @@ class unet_3d(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-3d-unet-cpu")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-3d-unet-cpu')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
-            f.write(f"source {str(settings.HOME)}/miniconda3/bin/activate peace")  # TODO more general path
+            f.write(f"source {shell_arg(str(settings.HOME))}/miniconda3/bin/activate peace")  # TODO more general path
             f.write('\n')
-            f.write(f'python {slurm_script} ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(f'python {shell_arg(slurm_script)} ')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')
+            f.write(shell_arg(self.output_folder_sequence))
             f.write(' ')
-            f.write(f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID {self.model} {self.user} {self.priority}')
+            f.write(f'{shell_arg(self.resolution_level)} {shell_arg(self.channel)} $SLURM_ARRAY_TASK_ID {shell_arg(self.model)} {shell_arg(self.user)} {shell_arg(self.priority)}')
             f.write('\n')
 
         extra_args = {}

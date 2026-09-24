@@ -13,7 +13,7 @@ from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 class ants(ImageOperation):
@@ -156,19 +156,19 @@ class ants(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-{self.name}")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-' + self.name)}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate ants")
             f.write('\n')
-            f.write(f'python {slurm_script} ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(f'python {shell_arg(slurm_script)} ')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.registration_folder if ' ' not in self.registration_folder else f'"{self.registration_folder}"')
-            f.write(f' {self.atlas}')
-            f.write(f' {self.orientation}')
+            f.write(shell_arg(self.registration_folder))
+            f.write(f' {shell_arg(self.atlas)}')
+            f.write(f' {shell_arg(self.orientation)}')
             f.write('\n')
 
         print("Starting registration...")

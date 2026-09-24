@@ -5,7 +5,7 @@ import json
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 class combine_with_metadata(ImageOperation):
@@ -85,23 +85,23 @@ class combine_with_metadata(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-combine-with-metadata")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-combine-with-metadata')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_combine_w_metadata_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_combine_w_metadata_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(self.cells_path if ' ' not in self.cells_path else f'"{self.cells_path}"')
+            f.write(shell_arg(self.cells_path))
             f.write(' ')
-            f.write(self.results_folder if ' ' not in self.results_folder else f'"{self.results_folder}"')
+            f.write(shell_arg(self.results_folder))
             f.write(' ')
-            f.write(self.metadata_path if ' ' not in self.metadata_path else f'"{self.metadata_path}"')
+            f.write(shell_arg(self.metadata_path))
             f.write(' ')
             for metadata_field in self.metadata_fields:
-                f.write(f"{metadata_field['key'].replace(' ', '')}={metadata_field['value'].replace(' ', '')}")
+                f.write(f"{shell_arg(metadata_field['key'].replace(' ', ''))}={shell_arg(metadata_field['value'].replace(' ', ''))}")
                 f.write(' ')
             f.write('\n')
 

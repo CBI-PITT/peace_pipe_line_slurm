@@ -5,7 +5,7 @@ import json
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 class transform_points(ImageOperation):
@@ -96,22 +96,22 @@ class transform_points(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-transform-points")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-transform-points')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate cellfinder")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(self.cells_path if ' ' not in self.cells_path else f'"{self.cells_path}"')
+            f.write(shell_arg(self.cells_path))
             f.write(' ')
-            f.write(self.registration_path if ' ' not in self.registration_path else f'"{self.registration_path}"')
+            f.write(shell_arg(self.registration_path))
             f.write(' ')
-            f.write(self.results_folder if ' ' not in self.results_folder else f'"{self.results_folder}"')
+            f.write(shell_arg(self.results_folder))
             f.write(' ')
-            f.write(self.metadata_path if ' ' not in self.metadata_path else f'"{self.metadata_path}"')
+            f.write(shell_arg(self.metadata_path))
             f.write('\n')
 
         extra_args = {}

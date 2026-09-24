@@ -4,7 +4,7 @@ import os
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 ATLAS_COLUMNS = ["atlas_structure_name", "atlas_structure_acronym", "atlas_structure_number"]
@@ -106,20 +106,20 @@ class nearest_neighbor(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-nearest-neighbor")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-nearest-neighbor')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate dbscan")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(self.cells_path if ' ' not in self.cells_path else f'"{self.cells_path}"')
+            f.write(shell_arg(self.cells_path))
             f.write(' ')
-            f.write(self.results_folder if ' ' not in self.results_folder else f'"{self.results_folder}"')
+            f.write(shell_arg(self.results_folder))
             f.write(' ')
-            f.write(self.source_provenance_path if ' ' not in self.source_provenance_path else f'"{self.source_provenance_path}"')
+            f.write(shell_arg(self.source_provenance_path))
             f.write('\n')
 
         extra_args = {}

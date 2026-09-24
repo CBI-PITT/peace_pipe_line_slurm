@@ -4,11 +4,11 @@ import os
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 def shell_path(path):
-    return path if ' ' not in path else f'"{path}"'
+    return shell_arg(path)
 
 
 def resolutions_close(a, b, rtol=0.001):
@@ -220,14 +220,14 @@ class mean_intensity(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-mean-intensity")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-mean-intensity')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
             f.write(shell_path(self.cells_path))
             f.write(' ')

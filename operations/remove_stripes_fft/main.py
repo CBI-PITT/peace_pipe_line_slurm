@@ -4,7 +4,7 @@ import os
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 from utils.z_range import normalize_z_range, z_range_provenance, z_range_suffix
 
 
@@ -95,23 +95,23 @@ class remove_stripes_fft(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-remove-stripes-main")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-remove-stripes-main')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script} ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(f'python {shell_arg(slurm_script)} ')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(shell_arg(self.save_folder))
             f.write(' ')
             f.write(
                 f'{self.resolution_level} {self.channel} {self.user} {self.priority} {self.stripe_direction}')
             f.write(' ')
             if self.composites_dir:
-                f.write(self.composites_dir if ' ' not in self.composites_dir else f'"{self.composites_dir}"')
+                f.write(shell_arg(self.composites_dir))
             else:
                 f.write('""')
             f.write(' ')

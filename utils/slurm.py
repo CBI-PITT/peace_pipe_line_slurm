@@ -1,5 +1,6 @@
 import os
 import re
+import shlex
 import shutil
 import subprocess
 
@@ -7,6 +8,18 @@ from analysis.settings import (
     SLURM_PARTITION_CPU, GPU_ENABLED_PARTITIONS,
     PRIORITY_TO_NICE_MAP_COMPUTE, PRIORITY_TO_NICE_MAP_GPU, SLURM_PARTITION_EXTREME
 )
+
+
+def shell_arg(value):
+    """Safe single-token interpolation for bash scripts and #SBATCH directives.
+
+    Quotes the value with shlex so no shell metacharacter ($(), backticks, ;,
+    &&, |, >, globs...) can execute, and strips newlines so a hostile value
+    cannot break a #SBATCH directive line into a second bash line.
+    Intentional runtime variables such as $SLURM_ARRAY_TASK_ID must NOT be
+    passed through this helper (they must stay unquoted to expand at runtime).
+    """
+    return shlex.quote(str(value).replace('\n', ' ').replace('\r', ' '))
 
 
 def get_job_number_from_slurm_out(output):
