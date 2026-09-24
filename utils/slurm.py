@@ -26,7 +26,7 @@ def get_job_number_from_slurm_out(output):
     return int(output.stdout[20:-1])
 
 
-def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
+def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority='0', extra_args=None):
     if needs_gpu:
         nice = PRIORITY_TO_NICE_MAP_GPU[priority]
     else:
@@ -53,7 +53,7 @@ def submit_slurm_job(job_path, partition=SLURM_PARTITION_CPU, cores=1, memory=8,
         return []
 
 
-def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
+def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority='0', extra_args=None):
     if needs_gpu:
         nice = PRIORITY_TO_NICE_MAP_GPU[priority]
     else:
@@ -84,7 +84,7 @@ def submit_slurm_array(job_path, number_of_tasks, partition=SLURM_PARTITION_CPU,
         return []
 
 
-def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
+def submit_partial_slurm_array(job_path, array_start, array_end, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority='0', extra_args=None):
     if needs_gpu:
         nice = PRIORITY_TO_NICE_MAP_GPU[priority]
     else:
@@ -140,7 +140,7 @@ def submit_slurm_indices(
     cores=1,
     memory=8,
     needs_gpu=False,
-    priority=0,
+    priority='0',
     extra_args=None,
 ):
     completed = set(existing_outputs or [])
@@ -173,7 +173,7 @@ def split_range_in_subranges(n, existing_outputs):
     return split_indices_in_subranges(missing)
 
 
-def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority=0, extra_args=None):
+def split_slurm_array(job_path, number_of_tasks, existing_outputs, partition=SLURM_PARTITION_CPU, cores=1, memory=8, needs_gpu=False, priority='0', extra_args=None):
     return submit_slurm_indices(
         job_path,
         range(number_of_tasks),

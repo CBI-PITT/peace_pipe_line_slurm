@@ -125,12 +125,29 @@ python3 -m py_compile flask_app/app.py flask_app/forms.py flask_app/operations/*
 
 ### Tests
 
-`tests/` (with `pytest.ini`, `testpaths = tests`) covers the watcher's security
-validation helpers (`utils/validation.py`): user-name regex, realpath
-containment under `{FS_ROOT}/{user}/`, the operation-class whitelist, and
-history-record path derivation. The module is import-light on purpose (no
-numpy/pandas), so the suite runs in the peace-flask-test env without the
-analysis environment.
+`tests/` (with `pytest.ini`, `testpaths = tests`) covers the watcher's support
+modules with mocked `subprocess.run` and tmp directories:
+
+- `test_validation.py`: security validation helpers (`utils/validation.py` —
+  user-name regex, realpath containment under `{FS_ROOT}/{user}/`, the
+  operation-class whitelist, history-record path derivation).
+- `test_slurm_quoting.py`: `shell_arg` quoting — shlex round-trip for hostile
+  payloads, newline stripping, a real bash behavioral test (command
+  substitution inside quoted args must not execute), simulated script
+  generation.
+- `test_slurm_submission.py`: sbatch command construction (partition, gres,
+  mem, cores, nice scaling, extra args), array ranges, subrange splitting,
+  resume skips, failure paths.
+- `test_parse_slurm_errors.py`: log triage with tmp directories.
+- `test_z_range.py`: range normalization/validation, suffixes, TIFF path
+  resolution (canonical/indexed/unindexed).
+- `test_job_history.py`: record load/update/merge, workflow step updates,
+  dispatch-failure marking (job + workflow kinds), log-folder inference.
+
+The modules are import-light on purpose (no numpy/pandas), so the suite runs in
+the peace-flask-test env without the analysis environment. The dispatch
+handlers in `start_pipeline.py` themselves need the peace env and are not
+covered here.
 
 Run from the repo root:
 
