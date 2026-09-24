@@ -8,7 +8,7 @@ from glob import glob
 from analysis import settings
 from operations.base import ImageReader
 from utils import get_user
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import shell_arg, split_slurm_array, submit_slurm_array
 
 
 class jp2_reader(ImageReader):
@@ -242,18 +242,18 @@ class jp2_reader(ImageReader):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f'#SBATCH -J {self.user}-{self.name}')
+            f.write(f'#SBATCH -J {shell_arg(self.user + "-" + self.name)}')
             f.write('\n')
-            f.write(f'#SBATCH -o {self.jobs_folder}/slurm_%j.out')
+            f.write(f'#SBATCH -o {shell_arg(self.jobs_folder + "/slurm_%j.out")}')
             f.write('\n')
             f.write('\n')
             f.write('source /h20/home/lab/miniconda3/bin/activate jp2')
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(shell_arg(self.output))
             f.write(' ')
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write(' ')

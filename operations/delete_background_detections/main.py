@@ -7,7 +7,7 @@ from glob import glob
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 class delete_background_detections(ImageOperation):
@@ -102,24 +102,24 @@ class delete_background_detections(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-delete-bg-detections-main")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-delete-bg-detections-main')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/main_delete_bg_detections_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/main_delete_bg_detections_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(shell_arg(self.save_folder))
             f.write(' ')
-            f.write(self.points if ' ' not in self.points else f'"{self.points}"')
+            f.write(shell_arg(self.points))
             f.write(' ')
-            f.write(self.masks if ' ' not in self.masks else f'"{self.masks}"')
+            f.write(shell_arg(self.masks))
             f.write(' ')
-            f.write(self.output if ' ' not in self.output else f'"{self.output}"')
+            f.write(shell_arg(self.output))
             f.write(' ')
             f.write(self.user)
             f.write(' ')

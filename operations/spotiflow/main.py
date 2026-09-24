@@ -10,7 +10,7 @@ from imaris_ims_file_reader import ims
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 class spotiflow(ImageOperation):
@@ -97,19 +97,19 @@ class spotiflow(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-spotiflow-main")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-spotiflow-main')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/spotiflow_main_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/spotiflow_main_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script} ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(f'python {shell_arg(slurm_script)} ')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(shell_arg(self.save_folder))
             f.write(' ')
-            f.write(f'{self.user} {self.priority} {self.model} {int(self.with_dbscan)}')
+            f.write(f'{shell_arg(self.user)} {shell_arg(self.priority)} {shell_arg(self.model)} {shell_arg(int(self.with_dbscan))}')
             f.write('\n')
 
         extra_args = {}

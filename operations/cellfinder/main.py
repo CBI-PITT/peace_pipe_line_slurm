@@ -9,7 +9,7 @@ from imaris_ims_file_reader import ims
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 class cellfinder(ImageOperation):
@@ -105,20 +105,20 @@ class cellfinder(ImageOperation):
             # f.write('ulimit -n 600000')
             # f.write('\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-{self.name}")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-' + self.name)}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate cellfinder")
             f.write('\n')
             f.write('cellfinder -s ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(shell_arg(self.input))
             f.write(' -b ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(shell_arg(self.input))
             f.write(' -o ')
-            f.write(self.detection_folder if ' ' not in self.detection_folder else f'"{self.detection_folder}"')
-            f.write(f' -v {str(self.resolution[0])} {str(self.resolution[1])} {str(self.resolution[2])}')
+            f.write(shell_arg(self.detection_folder))
+            f.write(f' -v {shell_arg(str(self.resolution[0]))} {shell_arg(str(self.resolution[1]))} {shell_arg(str(self.resolution[2]))}')
             f.write(f' --orientation sal --atlas allen_mouse_25um')
             f.write(f' --no-analyse --no-figures --no-register --no-classification --ball-z-size {str(int(self.resolution[0])+1)}')
             f.write('\n')

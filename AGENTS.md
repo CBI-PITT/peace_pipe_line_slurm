@@ -125,17 +125,24 @@ python3 -m py_compile flask_app/app.py flask_app/forms.py flask_app/operations/*
 
 ### Tests
 
-There is currently no automated test suite checked into this workspace.
+`tests/` (with `pytest.ini`, `testpaths = tests`) covers the watcher's security
+validation helpers (`utils/validation.py`): user-name regex, realpath
+containment under `{FS_ROOT}/{user}/`, the operation-class whitelist, and
+history-record path derivation. The module is import-light on purpose (no
+numpy/pandas), so the suite runs in the peace-flask-test env without the
+analysis environment.
 
-Because there are no tests, there is no real “single test” command to run today.
-
-If a test file is added later and `pytest` is introduced, use the normal single-test form:
+Run from the repo root:
 
 ```bash
-pytest path/to/test_file.py::test_name
+python3 -m pytest
 ```
 
-Until then, treat targeted `py_compile` plus manual validation as the required verification path.
+Single test:
+
+```bash
+pytest tests/test_validation.py::test_name
+```
 
 ### Manual Validation
 

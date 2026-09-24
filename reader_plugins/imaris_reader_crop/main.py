@@ -10,7 +10,7 @@ from imaris_ims_file_reader import ims
 from analysis import settings
 from operations.base import ImageReader
 from utils import get_user
-from utils.slurm import submit_partial_slurm_array
+from utils.slurm import shell_arg, submit_partial_slurm_array
 
 
 class imaris_reader_crop(ImageReader):
@@ -79,18 +79,18 @@ class imaris_reader_crop(ImageReader):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-extract-tiffs")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-extract-tiffs')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO create a separate env?
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(str(self.input if ' ' not in self.input else f'"{self.input}"'))
+            f.write(str(shell_arg(self.input)))
             f.write(' ')
-            f.write(str(self.extracted_tiffs_folders[0] if ' ' not in self.extracted_tiffs_folders[0] else f'"{self.extracted_tiffs_folders[0]}"'))
+            f.write(str(shell_arg(self.extracted_tiffs_folders[0])))
             f.write(' ')
             f.write(str(self.resolution_level))
             f.write(' ')

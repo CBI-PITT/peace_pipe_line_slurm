@@ -20,6 +20,7 @@ import importlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 import traceback
@@ -53,6 +54,13 @@ log = logging.getLogger(__name__)
 
 json_settings = {}
 
+from utils.validation import (
+    valid_user,
+    path_allowed_for_user,
+    resolve_operation_class,
+    history_record_path,
+)
+
 
 def update_submission_history_for_failure(settings_file_path, error_text):
     try:
@@ -60,7 +68,8 @@ def update_submission_history_for_failure(settings_file_path, error_text):
             payload = json.load(f)
     except Exception:
         return
-    history_file = payload.get('history_file')
+    kind = 'workflow' if os.path.basename(settings_file_path).startswith('SLURM_workflow') else 'job'
+    history_file = history_record_path(payload, kind, settings.JOB_HISTORY_DIR)
     if history_file:
         mark_dispatch_failure(history_file, error_text)
 
@@ -213,7 +222,6 @@ def start_pipeline_slurm(settings_file_path):
     INPUT = json_settings.get('input')
     OUTPUT = json_settings.get('output')
     OPERATION = json_settings.get('operation')
-    history_file = json_settings.get('history_file')
     # if not INPUT or not OUTPUT or not OPERATION:
     #     log.exception("Fields 'input', 'output' and 'operation' are required in the JSON")
     #     return
@@ -221,7 +229,7 @@ def start_pipeline_slurm(settings_file_path):
     if type(EXTRAS) != dict:
         log.exception("Field 'extras' needs to be a mapping/dictionary")
         return
-    if not EXTRAS or 'user' not in EXTRAS:
+    if not EXTRAS or not valid_user(EXTRAS.get('user')):
         raise PermissionError("Unknown user")
     USER = EXTRAS['user']
     # CSV-input operations submit empty input/output and derive their paths
@@ -232,18 +240,15 @@ def start_pipeline_slurm(settings_file_path):
         input_check_path = EXTRAS.get('cells_path') or EXTRAS.get('cell_candidates_path') or ''
     if not output_check_path:
         output_check_path = input_check_path
-    if not input_check_path.startswith(f"{settings.FS_ROOT}/{USER}"):
+    if not path_allowed_for_user(input_check_path, USER, settings.FS_ROOT):
         raise PermissionError(f"Input location not allowed: {input_check_path}")
-    if not output_check_path.startswith(f"{settings.FS_ROOT}/{USER}"):
+    if not path_allowed_for_user(output_check_path, USER, settings.FS_ROOT):
         raise PermissionError(f"Output location not allowed: {output_check_path}")
-    try:
-        operation_class = getattr(sys.modules[__name__], OPERATION)
-    except AttributeError:
-        print(f"Attempting to load plugin for operation {OPERATION}")
-        operation_class = plugins[OPERATION]
+    operation_class = resolve_operation_class(OPERATION, sys.modules[__name__], plugins, reader_plugins, (ImageOperation, ImageReader))
     if issubclass(operation_class, ImageOperation):
         ensure_input_metadata(INPUT, OUTPUT)
     operation = operation_class(INPUT, OUTPUT, **EXTRAS)
+    history_file = history_record_path(json_settings, 'job', settings.JOB_HISTORY_DIR)
     if history_file:
         update_record(history_file, {'status': 'dispatching', 'dispatch_error': None})
     provenance, job_ids = operation.run()
@@ -271,7 +276,6 @@ def start_reader_slurm(settings_file_path):
     INPUT = json_settings.get('input')
     OUTPUT = json_settings.get('output')
     OPERATION = json_settings.get('operation')
-    history_file = json_settings.get('history_file')
     if not INPUT or not OUTPUT or not OPERATION:
         log.exception("Fields 'input', 'output' and 'operation' are required in the JSON")
         return
@@ -279,12 +283,16 @@ def start_reader_slurm(settings_file_path):
     if type(EXTRAS) != dict:
         log.exception("Field 'extras' needs to be a mapping/dictionary")
         return
-    try:
-        operation_class = getattr(sys.modules[__name__], OPERATION)
-    except AttributeError:
-        print(f"Attempting to load plugin for operation {OPERATION}")
-        operation_class = reader_plugins[OPERATION]
+    if not valid_user(EXTRAS.get('user')):
+        raise PermissionError("Unknown user")
+    USER = EXTRAS['user']
+    if not path_allowed_for_user(INPUT, USER, settings.FS_ROOT):
+        raise PermissionError(f"Input location not allowed: {INPUT}")
+    if not path_allowed_for_user(OUTPUT, USER, settings.FS_ROOT):
+        raise PermissionError(f"Output location not allowed: {OUTPUT}")
+    operation_class = resolve_operation_class(OPERATION, sys.modules[__name__], plugins, reader_plugins, (ImageOperation, ImageReader), allow_reader=True)
     operation = operation_class(INPUT, OUTPUT, **EXTRAS)
+    history_file = history_record_path(json_settings, 'job', settings.JOB_HISTORY_DIR)
     if history_file:
         update_record(history_file, {'status': 'dispatching', 'dispatch_error': None})
     provenance, job_ids = operation.run()
@@ -309,7 +317,7 @@ def start_workflow_slurm(settings_file_path):
             return
     outputs = {}
     steps = json_settings["steps"]
-    history_file = json_settings.get('history_file')
+    history_file = history_record_path(json_settings, 'workflow', settings.JOB_HISTORY_DIR)
     if history_file:
         update_record(history_file, {'status': 'dispatching', 'dispatch_error': None})
     # operation_outputs = {x['operation']: x['output_name'] for x in steps}
@@ -329,19 +337,21 @@ def start_workflow_slurm(settings_file_path):
                 count += 1
             operation_outputs[extended_operation_name] = step['output_name']
         try:
-            operation_class = getattr(sys.modules[__name__], operation_name)
-        except AttributeError:
-            print(f"Attempting to load plugin for operation {operation_name}")
-            operation_class = reader_plugins.get(operation_name)
-            print('operation_class', operation_class)
-            if not operation_class:
-                operation_class = plugins.get(operation_name)
-
+            operation_class = resolve_operation_class(operation_name, sys.modules[__name__], plugins, reader_plugins, (ImageOperation, ImageReader), allow_reader=True)
+        except ValueError:
+            log.exception("Unknown operation in workflow step: %s", operation_name)
+            raise
         input = ""
         output = ""
         extras = step["extras"].copy()
         original_output = extras.get('output')
         extras.pop("operation")
+        step_user = extras.get('user')
+        if not valid_user(step_user):
+            raise PermissionError("Unknown user")
+        for step_path in (extras.get('input'), original_output):
+            if step_path and not path_allowed_for_user(step_path, step_user, settings.FS_ROOT):
+                raise PermissionError(f"Workflow step location not allowed: {step_path}")
         inputs_from_other_operations = step['input_bindings']
         print("inputs_from_other_operations", inputs_from_other_operations)
         print("operation_outputs", operation_outputs)

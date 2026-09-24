@@ -12,7 +12,7 @@ from analysis.guess_background_channel import guess_background
 from analysis.guess_brain_orientation import guess_orientation
 from operations.base import ImageReader
 from utils import get_user
-from utils.slurm import split_slurm_array, submit_slurm_array
+from utils.slurm import shell_arg, split_slurm_array, submit_slurm_array
 
 
 class imaris_reader(ImageReader):
@@ -79,18 +79,18 @@ class imaris_reader(ImageReader):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-extract-tiffs")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-extract-tiffs')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.output}/slurm_jobs/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.output + '/slurm_jobs/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO create a separate env?
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(str(self.input if ' ' not in self.input else f'"{self.input}"'))
+            f.write(str(shell_arg(self.input)))
             f.write(' ')
-            f.write(str(self.output if ' ' not in self.output else f'"{self.output}"'))
+            f.write(str(shell_arg(self.output)))
             f.write(' ')
             f.write(str(self.resolution_level))
             f.write(' ')
@@ -138,18 +138,18 @@ class imaris_reader(ImageReader):
             with open(path_to_task, 'w') as f:
                 f.write('#!/bin/bash\n')
                 f.write('\n')
-                f.write(f"#SBATCH -J {self.user}-extract-tiffs")
+                f.write(f"#SBATCH -J {shell_arg(self.user + '-extract-tiffs')}")
                 f.write('\n')
-                f.write(f"#SBATCH -o {self.output}/slurm_jobs/slurm_extract_tiffs_%j.out")
+                f.write(f"#SBATCH -o {shell_arg(self.output + '/slurm_jobs/slurm_extract_tiffs_%j.out')}")
                 f.write('\n')
                 f.write('\n')
                 f.write("source /h20/home/lab/miniconda3/bin/activate peace")  # TODO create a separate env?
                 f.write('\n')
-                f.write(f'python {slurm_script}')
+                f.write(f'python {shell_arg(slurm_script)}')
                 f.write(' ')
-                f.write(str(self.input if ' ' not in self.input else f'"{self.input}"'))
+                f.write(str(shell_arg(self.input)))
                 f.write(' ')
-                f.write(str(self.output if ' ' not in self.output else f'"{self.output}"'))
+                f.write(str(shell_arg(self.output)))
                 f.write(' ')
                 f.write(str(self.resolution_level))
                 f.write(' ')

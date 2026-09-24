@@ -9,7 +9,7 @@ import numpy as np
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 from utils.slurm import submit_slurm_array
 
 
@@ -104,22 +104,22 @@ class cellpose(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-cellpose-2d")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-cellpose-2d')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate cellpose")
             f.write('\n')
             f.write('cellpose')
             f.write(' --dir ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
-            f.write(f' --pretrained_model {self.model}')
+            f.write(shell_arg(self.input))
+            f.write(f' --pretrained_model {shell_arg(self.model)}')
             f.write(' --chan 0')
-            f.write(f' --diameter {self.diameter}')
+            f.write(f' --diameter {shell_arg(self.diameter)}')
             f.write(' --save_tif')
             f.write(' --savedir ')
-            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(shell_arg(self.save_folder))
             f.write(' --use_gpu')
             f.write(' --no_npy')
             f.write(' --verbose')
@@ -193,17 +193,17 @@ class cellpose(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-cellpose-cpu")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-cellpose-cpu')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script} ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(f'python {shell_arg(slurm_script)} ')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.output_folder_sequence if ' ' not in self.output_folder_sequence else f'"{self.output_folder_sequence}"')
+            f.write(shell_arg(self.output_folder_sequence))
             f.write(' ')
             f.write(
                 f'{self.resolution_level} {self.channel} $SLURM_ARRAY_TASK_ID '

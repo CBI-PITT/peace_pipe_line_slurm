@@ -11,7 +11,7 @@ from imaris_ims_file_reader import ims
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_job
 
 
 class brainreg(ImageOperation):
@@ -130,28 +130,28 @@ class brainreg(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-brainreg")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-brainreg')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write('set -e\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate brainreg")
             f.write('\n')
             f.write('brainreg ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.registration_folder if ' ' not in self.registration_folder else f'"{self.registration_folder}"')
-            f.write(f' -v {str(self.resolution[0])} {str(self.resolution[1])} {str(self.resolution[2])}')
-            f.write(f' --orientation {self.orientation} --atlas {self.atlas} --brain_geometry {self.brain_geometry}')
+            f.write(shell_arg(self.registration_folder))
+            f.write(f' -v {shell_arg(str(self.resolution[0]))} {shell_arg(str(self.resolution[1]))} {shell_arg(str(self.resolution[2]))}')
+            f.write(f' --orientation {shell_arg(self.orientation)} --atlas {shell_arg(self.atlas)} --brain_geometry {shell_arg(self.brain_geometry)}')
             f.write('\n')
             f.write('python3 -c ')
             f.write('"import shutil, sys; shutil.make_archive(sys.argv[1], \'zip\', root_dir=sys.argv[2], base_dir=sys.argv[3])" ')
-            f.write(self.registration_folder if ' ' not in self.registration_folder else f'"{self.registration_folder}"')
+            f.write(shell_arg(self.registration_folder))
             f.write(' ')
-            f.write(registration_parent if ' ' not in registration_parent else f'"{registration_parent}"')
+            f.write(shell_arg(registration_parent))
             f.write(' ')
-            f.write(registration_basename if ' ' not in registration_basename else f'"{registration_basename}"')
+            f.write(shell_arg(registration_basename))
             f.write('\n')
 
         print("Starting registration...")

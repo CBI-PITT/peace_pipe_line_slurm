@@ -7,7 +7,7 @@ import tifffile
 from ..base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_indices
+from utils.slurm import shell_arg, submit_slurm_indices
 from utils.z_range import (
     Z_FILENAME_PATTERN,
     get_available_z_range,
@@ -268,16 +268,16 @@ class image_calculator(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-image-calculator")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-image-calculator')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate peace")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(self.manifest_path if ' ' not in self.manifest_path else f'"{self.manifest_path}"')
+            f.write(shell_arg(self.manifest_path))
             f.write(' ')
             f.write('$SLURM_ARRAY_TASK_ID')
             f.write(' ')

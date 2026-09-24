@@ -11,7 +11,7 @@ from operations.base import ImageReader
 from analysis import settings
 from analysis.guess_brain_orientation import _guess_orientation
 from utils import get_user
-from utils.slurm import submit_slurm_array, submit_slurm_job
+from utils.slurm import shell_arg, submit_slurm_array, submit_slurm_job
 
 
 class omehans_reader(ImageReader):
@@ -66,18 +66,18 @@ class omehans_reader(ImageReader):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-{self.name}")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-' + self.name)}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate omehans-reader")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(str(self.input if ' ' not in self.input else f'"{self.input}"'))
+            f.write(str(shell_arg(self.input)))
             f.write(' ')
-            f.write(str(self.output if ' ' not in self.output else f'"{self.output}"'))
+            f.write(str(shell_arg(self.output)))
             f.write(' ')
             f.write(str(self.resolution_level))
             f.write(' ')
@@ -146,18 +146,18 @@ class omehans_reader(ImageReader):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-omehans-reader")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-omehans-reader')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate omehans-reader")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(str(self.input if ' ' not in self.input else f'"{self.input}"'))
+            f.write(str(shell_arg(self.input)))
             f.write(' ')
-            f.write(str(self.volume_100um_location if ' ' not in self.volume_100um_location else f'"{self.volume_100um_location}"'))
+            f.write(str(shell_arg(self.volume_100um_location)))
             f.write(' ')
             f.write(str(self.channel))
             f.write('\n')

@@ -4,7 +4,7 @@ import os
 from operations.base import ImageOperation
 from analysis import settings
 from utils import get_user
-from utils.slurm import submit_slurm_indices
+from utils.slurm import shell_arg, submit_slurm_indices
 from utils.z_range import existing_z_indices, normalize_z_range, z_range_provenance, z_range_suffix
 
 
@@ -99,18 +99,18 @@ class rembg(ImageOperation):
         with open(path_to_task, 'w') as f:
             f.write('#!/bin/bash\n')
             f.write('\n')
-            f.write(f"#SBATCH -J {self.user}-rembg")
+            f.write(f"#SBATCH -J {shell_arg(self.user + '-rembg')}")
             f.write('\n')
-            f.write(f"#SBATCH -o {self.jobs_folder}/slurm_%j.out")
+            f.write(f"#SBATCH -o {shell_arg(self.jobs_folder + '/slurm_%j.out')}")
             f.write('\n')
             f.write('\n')
             f.write("source /h20/home/lab/miniconda3/bin/activate rembg")
             f.write('\n')
-            f.write(f'python {slurm_script}')
+            f.write(f'python {shell_arg(slurm_script)}')
             f.write(' ')
-            f.write(self.input if ' ' not in self.input else f'"{self.input}"')
+            f.write(shell_arg(self.input))
             f.write(' ')
-            f.write(self.save_folder if ' ' not in self.save_folder else f'"{self.save_folder}"')
+            f.write(shell_arg(self.save_folder))
             f.write(' ')
             f.write(str(self.resolution_level))
             f.write(' ')
