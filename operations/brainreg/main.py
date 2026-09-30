@@ -153,6 +153,13 @@ class brainreg(ImageOperation):
             f.write(' ')
             f.write(shell_arg(registration_basename))
             f.write('\n')
+            # BrAinPI-friendly _ng copies for the File Browser's Neuroglancer
+            # button; written after the zip so the zip stays napari-oriented.
+            f.write('python3 ')
+            f.write(shell_arg(os.path.join(os.path.dirname(__file__), "write_ng_copies.py")))
+            f.write(' ')
+            f.write(shell_arg(self.registration_folder))
+            f.write('\n')
 
         print("Starting registration...")
         extra_args = {}

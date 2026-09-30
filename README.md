@@ -125,6 +125,16 @@ folders (`r{rl}_t00_c{ch}_z{zzzz}.tif` per-z-plane names) and CSV point tables.
 | Cell detection | `deepblink`, `spotiflow`, `cellfinder` | TIFF → point CSVs |
 | Segmentation | `cellpose`, `ilastik`, `unet_3d` | TIFF → mask TIFF series |
 | Registration | `brainreg`, `ants` | TIFF → atlas-aligned volumes + deformation fields |
+
+`brainreg` additionally writes BrAinPI-friendly copies
+(`downsampled_ng.tif`, `boundaries_ng.tif`) into the registration folder after
+each run — OME-TIFFs with declared `ZYX` axes (the plain originals report
+`QYX`, which BrAinPI's loader rejects) so the PEACE File Browser's
+"Neuroglancer" button can serve them. The zip step runs before the copies, so
+`registration_<atlas>.zip` stays napari-oriented. The same script
+(`operations/brainreg/write_ng_copies.py`) works standalone for existing
+outputs: `python write_ng_copies.py <brainreg output folder or any parent>
+[--overwrite]`.
 | Post-processing | `dbscan`, `resnet_classification`, `delete_background_detections`, `transform_points`, `mean_intensity`, `nearest_neighbor` | point CSVs, masks → annotated CSVs |
 | Metadata | `combine_with_metadata` | point CSVs → CSVs with experiment covariates |
 
