@@ -20,7 +20,7 @@ def _guess_orientation(volume_100um):
     """
     from bg_atlasapi.bg_atlas import BrainGlobeAtlas
     import bg_space as bgs
-    atlas = BrainGlobeAtlas("allen_mouse_100um")
+    atlas = BrainGlobeAtlas("allen_mouse_100um", check_latest=False)
 
     reorient_spr_asr = bgs.map_stack_to("spr", "asr", volume_100um)
     resized_reorient_spr_asr = resize(
@@ -58,7 +58,7 @@ def guess_orientation(ims_file, save_100um_volume=False, out_dir=None):
     import bg_space as bgs
 
     log.info(f"Guessing orientation for {ims_file.filePathComplete}")
-    atlas = BrainGlobeAtlas("allen_mouse_100um")
+    atlas = BrainGlobeAtlas("allen_mouse_100um", check_latest=False)
     volume_100um = ims_file.get_Volume_At_Specific_Resolution()  # determine for channel 0
     if save_100um_volume and out_dir:  # Save 100um volume to specified directory
         tifffile.imwrite(

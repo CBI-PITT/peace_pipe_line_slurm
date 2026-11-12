@@ -21,7 +21,7 @@ def visualize_cells(options):
 
     analysis_dir_this_brain = options["out_name"]
     dataset_info = read_info_file(analysis_dir_this_brain)
-    atlas = BrainGlobeAtlas('allen_mouse_{}um'.format(dataset_info['allen_resolution']))
+    atlas = BrainGlobeAtlas('allen_mouse_{}um'.format(dataset_info['allen_resolution']), check_latest=False)
     for root, dirs, files in os.walk(analysis_dir_this_brain):
         for file in files:
             if file in [settings.TRANSFORMED_SPOTS_FILE_NAME, settings.TRANSFORMED_CELLS_FILE_NAME]:

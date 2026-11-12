@@ -34,7 +34,7 @@ orientation = sys.argv[4]
 INFO_FILE_NAME = 'dataset_info.json'
 
 print("Reading atlas")
-atlas = BrainGlobeAtlas(atlas_name)
+atlas = BrainGlobeAtlas(atlas_name, check_latest=False)
 
 metadata = json.load(open(os.path.join(input_folder, f'.{INFO_FILE_NAME}'), 'r'))
 

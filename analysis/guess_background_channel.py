@@ -75,7 +75,7 @@ def guess_by_nmi(ims_file, save_100um_volume=False, out_dir=None):
     orientation = options.get('orientation')
     if not orientation:
         orientation = guess_orientation(ims_file)
-    atlas = BrainGlobeAtlas("allen_mouse_100um")
+    atlas = BrainGlobeAtlas("allen_mouse_100um", check_latest=False)
     nmi_channels = []
     for channel in range(ims_file.Channels):
         volume_100um_file = os.path.join(

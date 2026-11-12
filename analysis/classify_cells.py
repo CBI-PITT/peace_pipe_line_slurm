@@ -38,7 +38,7 @@ def classify_cells(options):
     else:
         path_to_model = None
 
-    atlas = BrainGlobeAtlas(settings.ATLAS_NAME_FORMAT.format(options['allen_resolution']))
+    atlas = BrainGlobeAtlas(settings.ATLAS_NAME_FORMAT.format(options['allen_resolution']), check_latest=False)
     cellfinder_output_folder = os.path.join(
         options['out_name'],
         settings.RESOLUTION_LEVEL_FOLDER_NAME,

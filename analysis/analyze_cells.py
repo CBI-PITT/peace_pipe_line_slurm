@@ -255,7 +255,7 @@ def analyze_cells(options):
         os.path.join(registration_folder, 'deformation_field_2.tiff')
     ]
 
-    atlas = BrainGlobeAtlas('allen_mouse_{}um'.format(options['allen_resolution']))
+    atlas = BrainGlobeAtlas('allen_mouse_{}um'.format(options['allen_resolution']), check_latest=False)
 
     downsampled_space = get_downsampled_space(
         atlas,

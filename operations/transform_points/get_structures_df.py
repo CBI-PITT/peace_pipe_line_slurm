@@ -91,7 +91,7 @@ deformation_field_paths = [
 
 registration_json = os.path.join(registration_path, 'brainreg.json')
 registration_data = json.load(open(registration_json, 'r'))
-atlas = BrainGlobeAtlas(registration_data['atlas'])
+atlas = BrainGlobeAtlas(registration_data['atlas'], check_latest=False)
 
 source_space = bgs.AnatomicalSpace(
     registration_data['orientation'],

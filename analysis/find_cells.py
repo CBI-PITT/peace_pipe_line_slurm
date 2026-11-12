@@ -82,7 +82,7 @@ def detect_cells(options):
         from analysis.main import initialize_info_file
         initialize_info_file(ims_file, analysis_dir_this_brain)
 
-    atlas = BrainGlobeAtlas(settings.ATLAS_NAME_FORMAT.format(options["allen_resolution"]))
+    atlas = BrainGlobeAtlas(settings.ATLAS_NAME_FORMAT.format(options["allen_resolution"]), check_latest=False)
     soma_diameter = options.get('cell_size', settings.CELLFINDER_SOMA_DIAMETER)  # um
     threshold = options.get('threshold', settings.CELLFINDER_THRESHOLD)  # sigmas above mean
     align = options.get('align', False)
